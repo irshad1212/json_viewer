@@ -12,7 +12,8 @@ import {
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
+  DropdownMenuItem
 } from "@/components/ui/dropdown-menu";
 import {
   ResizablePanelGroup,
@@ -62,7 +63,7 @@ export default function Home() {
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [showColorIndent, setShowColorIndent] = useState(false);
   const [collapseOnDoubleClick, setCollapseOnDoubleClick] = useState(false);
-  const [enableTruncation, setEnableTruncation] = useState(true);
+  const [enableTruncation, setEnableTruncation] = useState(false);
   const [truncationLimit, setTruncationLimit] = useState(3);
   const [defaultExpanded, setDefaultExpanded] = useState<boolean | number>(false);
   const [theme, setTheme] = useState<"light" | "dark" | "system">(() => {
@@ -109,55 +110,83 @@ export default function Home() {
   return (
     <div className="flex h-screen w-full flex-col bg-zinc-50 dark:bg-black">
       <header className="flex h-14 items-center justify-between gap-3 border-b px-6 bg-white dark:bg-zinc-950 dark:border-zinc-800">
-        <h1 className="text-lg font-semibold text-foreground dark:text-zinc-100">Split-View JSON Viewer</h1>
-        <DropdownMenu>
-          <DropdownMenuTrigger className="h-8 text-xs font-normal justify-between w-[140px]">
-            Theme: {theme === "system" ? "System" : theme === "dark" ? "Dark" : "Light"}
-            <ChevronDown className="h-3.5 w-3.5 opacity-50" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-[140px]">
-            <DropdownMenuRadioGroup
-              value={theme}
-              onValueChange={(value) => setTheme(value as "light" | "dark" | "system")}
-            >
-              <DropdownMenuRadioItem value="dark" className="text-xs inline-flex items-center gap-2">
-                <Moon className="w-3.5 h-3.5" /> Dark (default)
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="light" className="text-xs inline-flex items-center gap-2">
-                <Sun className="w-3.5 h-3.5" /> Light
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="system" className="text-xs inline-flex items-center gap-2">
-                <Monitor className="w-3.5 h-3.5" /> System
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="ml-auto">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="h-8 text-xs font-normal justify-between w-[140px]">
+              <span className="inline-flex items-center gap-1.5">
+                {theme === "dark" ? <Moon className="w-3.5 h-3.5" /> : theme === "light" ? <Sun className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
+                {theme === "system" ? "System" : theme === "dark" ? "Dark" : "Light"}
+              </span>
+              <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-[140px]">
+              {[
+                { value: "dark" as const, label: "Dark (default)", icon: <Moon className="w-3.5 h-3.5" /> },
+                { value: "light" as const, label: "Light", icon: <Sun className="w-3.5 h-3.5" /> },
+                { value: "system" as const, label: "System", icon: <Monitor className="w-3.5 h-3.5" /> }
+              ].map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onClick={() => setTheme(opt.value)}
+                  className={cn(
+                    "text-xs inline-flex items-center gap-2",
+                    theme === opt.value && "bg-muted text-foreground"
+                  )}
+                >
+                  {opt.icon}
+                  {opt.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </header>
 
       <main className="flex flex-1 overflow-hidden min-h-0">
         <ResizablePanelGroup className="flex-1 min-h-0" orientation="horizontal">
           {/* Left Pane - Input */}
-          <ResizablePanel defaultSize="50%" minSize={16.7} className="border-r dark:border-zinc-800 bg-white dark:bg-zinc-950">
-          <div className="flex h-12 items-center justify-between border-b px-4 dark:border-zinc-800">
-            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">JSON Input</h2>
-            {error && (
-              <div className="flex items-center gap-1.5 text-xs text-red-500">
-                <AlertCircle className="h-3.5 w-3.5" />
-                <span>{error}</span>
-              </div>
+          <ResizablePanel defaultSize="50%" minSize={16.7} className="border-r dark:border-zinc-800 bg-white dark:bg-zinc-950 relative">
+            <div className="flex h-12 items-center justify-between border-b px-4 dark:border-zinc-800">
+              <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">JSON Input</h2>
+              {error && (
+                <div className="flex items-center gap-1.5 text-xs text-red-500">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  <span>{error}</span>
+                </div>
+              )}
+            </div>
+            {!error && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs absolute top-2 right-4 z-10"
+                onClick={() => {
+                  try {
+                    const parsed = JSON.parse(jsonText || "{}");
+                    const pretty = JSON.stringify(parsed, null, 2);
+                    setJsonText(pretty);
+                    setParsedJson(parsed);
+                    setError(null);
+                  } catch (err: any) {
+                    setError(err.message || "Invalid JSON");
+                  }
+                }}
+              >
+                Beautify
+              </Button>
             )}
-          </div>
-          <textarea
-            value={jsonText}
-            onChange={handleTextChange}
-            className={cn(
-              "flex-1 min-h-0 resize-none p-4 font-mono text-sm focus:outline-none bg-transparent text-foreground",
-              "dark:bg-zinc-950 dark:text-zinc-100",
-              error && "focus:ring-1 focus:ring-inset focus:ring-red-500 rounded-none ring-1 ring-inset ring-red-500"
-            )}
-            placeholder="Paste your JSON here..."
-            spellCheck={false}
-          />
+            <textarea
+              value={jsonText}
+              onChange={handleTextChange}
+              className={cn(
+                "flex-1 min-h-0 resize-none p-4 font-mono text-sm focus:outline-none bg-transparent text-foreground",
+                "font-['SFMono-Regular','Consolas','Liberation Mono','Menlo','Monaco','Fira Code','JetBrains Mono',monospace]",
+                "dark:bg-zinc-950 dark:text-zinc-100",
+                error && "focus:ring-1 focus:ring-inset focus:ring-red-500 rounded-none ring-1 ring-inset ring-red-500"
+              )}
+              placeholder="Paste your JSON here..."
+              spellCheck={false}
+            />
           </ResizablePanel>
 
           <ResizableHandle withHandle />
@@ -263,36 +292,34 @@ export default function Home() {
                     <ChevronDown className="h-3.5 w-3.5 opacity-50" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[140px]">
-                    <DropdownMenuRadioGroup
-                      value={
-                        defaultExpanded === true
-                          ? "true"
-                          : defaultExpanded === false
-                            ? "false"
-                            : String(defaultExpanded)
-                      }
-                      onValueChange={(value) => {
-                        if (value === "true") setDefaultExpanded(true);
-                        else if (value === "false") setDefaultExpanded(false);
-                        else setDefaultExpanded(Number(value));
-                      }}
-                    >
-                      <DropdownMenuRadioItem value="false" className="text-xs">
-                        Collapsed
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="true" className="text-xs">
-                        Expand All
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="1" className="text-xs">
-                        Depth 1
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="2" className="text-xs">
-                        Depth 2
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="3" className="text-xs">
-                        Depth 3
-                      </DropdownMenuRadioItem>
-                    </DropdownMenuRadioGroup>
+                    {[
+                      { value: "false", label: "Collapsed" },
+                      { value: "true", label: "Expand All" },
+                      { value: "1", label: "Depth 1" },
+                      { value: "2", label: "Depth 2" },
+                      { value: "3", label: "Depth 3" }
+                    ].map((opt) => (
+                      <DropdownMenuItem
+                        key={opt.value}
+                        onClick={() => {
+                          if (opt.value === "true") setDefaultExpanded(true);
+                          else if (opt.value === "false") setDefaultExpanded(false);
+                          else setDefaultExpanded(Number(opt.value));
+                        }}
+                        className={cn(
+                          "text-xs inline-flex items-center gap-2 w-full",
+                          String(
+                            defaultExpanded === true
+                              ? "true"
+                              : defaultExpanded === false
+                                ? "false"
+                                : defaultExpanded
+                          ) === opt.value && "bg-muted text-foreground"
+                        )}
+                      >
+                        {opt.label}
+                      </DropdownMenuItem>
+                    ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

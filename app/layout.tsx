@@ -10,7 +10,8 @@ const inter = Inter({
 
 const geistMono = Geist_Mono({
   subsets: ["latin"],
-  display: "swap"
+  display: "swap",
+  variable: "--font-mono"
 });
 
 export const metadata: Metadata = {
@@ -50,7 +51,7 @@ export default function RootLayout({
       </head>
       <body
         suppressHydrationWarning
-        className={`${inter.className} ${geistMono.className} antialiased`}
+        className={`${inter.className} ${geistMono.variable} antialiased`}
       >
         <TooltipProvider>{children}</TooltipProvider>
       </body>

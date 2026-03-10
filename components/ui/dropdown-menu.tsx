@@ -48,6 +48,24 @@ const DropdownMenuContent = React.forwardRef<
 });
 DropdownMenuContent.displayName = "DropdownMenuContent";
 
+const DropdownMenuItem = React.forwardRef<
+  HTMLDivElement,
+  React.ComponentProps<typeof Menu.Item>
+>(({ className, ...props }, ref) => {
+  return (
+    <Menu.Item
+      ref={ref}
+      className={cn(
+        "flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none",
+        "focus:bg-muted data-[highlighted]:bg-muted",
+        className
+      )}
+      {...props}
+    />
+  );
+});
+DropdownMenuItem.displayName = "DropdownMenuItem";
+
 const DropdownMenuRadioGroup = Menu.RadioGroup;
 
 const DropdownMenuRadioItem = React.forwardRef<
@@ -75,6 +93,7 @@ export {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem
 };
