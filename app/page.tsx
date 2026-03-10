@@ -105,6 +105,7 @@ export default function Home() {
   return (
     <div className="flex h-screen w-full flex-col bg-zinc-50 dark:bg-black">
       <header className="flex h-14 items-center justify-between gap-3 border-b px-6 bg-white dark:bg-zinc-950 dark:border-zinc-800">
+        <h1 className="text-lg font-semibold text-foreground dark:text-zinc-100">JSON Viewer</h1>
         <div className="ml-auto">
           <DropdownMenu>
             <DropdownMenuTrigger className="h-8 text-xs font-normal justify-between w-[140px]">
@@ -142,7 +143,7 @@ export default function Home() {
           {/* Left Pane - Input */}
           <div className="flex w-1/2 min-w-[25%] flex-col border-r dark:border-zinc-800 bg-white dark:bg-zinc-950 relative">
             <div className="flex h-12 items-center justify-between border-b px-4 dark:border-zinc-800">
-              <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">JSON Input</h2>
+              <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Input</h2>
               {error && (
                 <div className="flex items-center gap-1.5 text-xs text-red-500">
                   <AlertCircle className="h-3.5 w-3.5" />
@@ -187,7 +188,7 @@ export default function Home() {
           {/* Right Pane - Viewer */}
           <div className="flex w-1/2 min-w-[50%] flex-col bg-zinc-50 dark:bg-black">
           <div className="flex h-12 items-center justify-between border-b px-4 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Viewer Output</h2>
+            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Viewer</h2>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="hidden sm:inline">Collapse on</span>
               <Button
