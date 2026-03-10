@@ -137,13 +137,21 @@ export default function Home() {
   };
   const CHUNK_SIZE_XLSX = 500;
 
-  const formatTimestamp = (value: unknown): string | null => {
-    if (typeof value === "number" && Number.isFinite(value)) {
+  const likelyDateKey = (key?: string) =>
+    key ? /(date|time|timestamp|created|updated|expires|at)$/i.test(key) : false;
+
+  const formatTimestamp = (key: string | undefined, value: unknown): string | null => {
+    const withinRange = (d: Date) => {
+      const y = d.getFullYear();
+      return y >= 1970 && y <= 2100;
+    };
+
+    if (typeof value === "number" && Number.isFinite(value) && likelyDateKey(key)) {
       const digits = String(Math.abs(value)).length;
       const millis = digits === 13 ? value : digits === 10 ? value * 1000 : null;
       if (millis) {
         const d = new Date(millis);
-        if (!Number.isNaN(d.getTime())) {
+        if (!Number.isNaN(d.getTime()) && withinRange(d)) {
           return d.toLocaleString(undefined, {
             year: "numeric",
             month: "short",
@@ -156,19 +164,22 @@ export default function Home() {
         }
       }
     }
-    if (typeof value === "string") {
+
+    if (typeof value === "string" && (likelyDateKey(key) || /^\d{4}-\d{2}-\d{2}/.test(value))) {
       const parsed = Date.parse(value);
       if (!Number.isNaN(parsed)) {
         const d = new Date(parsed);
-        return d.toLocaleString(undefined, {
-          year: "numeric",
-          month: "short",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          timeZoneName: "short"
-        });
+        if (withinRange(d)) {
+          return d.toLocaleString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            timeZoneName: "short"
+          });
+        }
       }
     }
     return null;
@@ -305,7 +316,15 @@ export default function Home() {
   return (
     <div className="flex h-screen w-full flex-col bg-zinc-50 dark:bg-black">
       <header className="flex h-14 items-center justify-between gap-3 border-b px-6 bg-white dark:bg-zinc-950 dark:border-zinc-800">
-        <h1 className="text-lg font-semibold text-foreground dark:text-zinc-100">JSON Viewer</h1>
+        <div className="flex items-center gap-2">
+          <img src="/logo.png" alt="Logo" className="h-10 w-10 rounded" />
+          <h1
+            className="text-lg font-semibold text-foreground dark:text-zinc-100"
+            style={{ fontFamily: "var(--font-logo)" }}
+          >
+            JSON Viewer
+          </h1>
+        </div>
         <div className="ml-auto">
           <DropdownMenu>
             <DropdownMenuTrigger className="h-8 text-xs font-normal justify-between w-[140px]">
@@ -439,238 +458,238 @@ export default function Home() {
 
           {/* Right Pane - Viewer */}
           <div className="flex w-1/2 min-w-[50%] flex-col bg-zinc-50 dark:bg-black">
-          <div className="flex h-12 items-center justify-between border-b px-4 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Viewer</h2>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <span className="hidden sm:inline">Collapse on</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => setCollapseOnDoubleClick(!collapseOnDoubleClick)}
-                >
-                  {collapseOnDoubleClick ? "Double click" : "Single click"}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-b px-4 py-3 dark:border-zinc-800 bg-zinc-50/70 dark:bg-black">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowLineNumbers(!showLineNumbers)}
-                className={cn(
-                  "h-8 text-xs font-normal border transition-colors",
-                  showLineNumbers
-                    ? "bg-secondary border-primary/50 text-primary font-medium shadow-[0_0_8px_-2px_rgba(var(--primary),0.5)] hover:bg-secondary/80"
-                    : "bg-secondary/30 border-transparent text-muted-foreground hover:bg-secondary/50"
-                )}
-              >
-                <Hash className="w-3.5 h-3.5" />
-                Line Numbers
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowColorIndent(!showColorIndent)}
-                className={cn(
-                  "h-8 text-xs font-normal border transition-colors",
-                  showColorIndent
-                    ? "bg-secondary border-primary/50 text-primary font-medium shadow-[0_0_8px_-2px_rgba(var(--primary),0.5)] hover:bg-secondary/80"
-                    : "bg-secondary/30 border-transparent text-muted-foreground hover:bg-secondary/50"
-                )}
-              >
-                <Palette className="w-3.5 h-3.5" />
-                Color Indent
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setCollapseOnDoubleClick(!collapseOnDoubleClick)}
-                className={cn(
-                  "h-8 text-xs font-normal border transition-colors",
-                  collapseOnDoubleClick
-                    ? "bg-secondary border-primary/50 text-primary font-medium shadow-[0_0_8px_-2px_rgba(var(--primary),0.5)] hover:bg-secondary/80"
-                    : "bg-secondary/30 border-transparent text-muted-foreground hover:bg-secondary/50"
-                )}
-              >
-                <MousePointerClick className="w-3.5 h-3.5" />
-                Double Click
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setEnableTruncation(!enableTruncation)}
-                className={cn(
-                  "h-8 text-xs font-normal border transition-colors",
-                  enableTruncation
-                    ? "bg-secondary border-primary/50 text-primary font-medium shadow-[0_0_8px_-2px_rgba(var(--primary),0.5)] hover:bg-secondary/80"
-                    : "bg-secondary/30 border-transparent text-muted-foreground hover:bg-secondary/50"
-                )}
-              >
-                <Scissors className="w-3.5 h-3.5" />
-                Smart Truncation
-              </Button>
-
-              {enableTruncation && (
-                <div className="flex items-center gap-2 ml-1 animate-in fade-in slide-in-from-left-2">
-                  <Label className="text-xs text-muted-foreground whitespace-nowrap">Limit</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={truncationLimit}
-                    onChange={(e) => handleTruncationChange(Number(e.target.value))}
-                    className="w-16 h-8 text-xs px-2"
-                  />
+            <div className="flex h-12 items-center justify-between border-b px-4 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+              <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Viewer</h2>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <span className="hidden sm:inline">Collapse on</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setCollapseOnDoubleClick(!collapseOnDoubleClick)}
+                  >
+                    {collapseOnDoubleClick ? "Double click" : "Single click"}
+                  </Button>
                 </div>
-              )}
-
-              <div className="flex items-center gap-2 ml-auto">
-                <Button
-                  size="sm"
-                  variant={viewMode === "table" ? "default" : "outline"}
-                  className="h-7 px-2 text-xs"
-                  onClick={() => setViewMode(viewMode === "table" ? "tree" : "table")}
-                >
-                  {viewMode === "table" ? "Tree View" : "Table View"}
-                </Button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground whitespace-nowrap">Initial Expansion</Label>
-                <DropdownMenu>
-                  <DropdownMenuTrigger className="h-8 text-xs font-normal justify-between w-[140px]">
-                    {defaultExpanded === true
-                      ? "Expand All"
-                      : defaultExpanded === false
-                        ? "Collapsed"
-                        : `Depth ${defaultExpanded}`}
-                    <ChevronDown className="h-3.5 w-3.5 opacity-50" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-[140px]">
-                    {[
-                      { value: "false", label: "Collapsed" },
-                      { value: "true", label: "Expand All" },
-                      { value: "1", label: "Depth 1" },
-                      { value: "2", label: "Depth 2" },
-                      { value: "3", label: "Depth 3" }
-                    ].map((opt) => (
-                      <DropdownMenuItem
-                        key={opt.value}
-                        onClick={() => {
-                          if (opt.value === "true") setDefaultExpanded(true);
-                          else if (opt.value === "false") setDefaultExpanded(false);
-                          else setDefaultExpanded(Number(opt.value));
-                        }}
-                        className={cn(
-                          "text-xs inline-flex items-center gap-2 w-full",
-                          String(
-                            defaultExpanded === true
-                              ? "true"
-                              : defaultExpanded === false
-                                ? "false"
-                                : defaultExpanded
-                          ) === opt.value && "bg-muted text-foreground"
-                        )}
-                      >
-                        {opt.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
             </div>
-          </div>
 
-          <div className="flex-1 min-h-0 overflow-auto p-4">
-            {error ? (
-              <div className="flex h-full items-center justify-center text-sm text-zinc-500 dark:text-zinc-500">
-                Fix JSON errors to view the output
+            <div className="border-b px-4 py-3 dark:border-zinc-800 bg-zinc-50/70 dark:bg-black">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowLineNumbers(!showLineNumbers)}
+                  className={cn(
+                    "h-8 text-xs font-normal border transition-colors",
+                    showLineNumbers
+                      ? "bg-secondary border-primary/50 text-primary font-medium shadow-[0_0_8px_-2px_rgba(var(--primary),0.5)] hover:bg-secondary/80"
+                      : "bg-secondary/30 border-transparent text-muted-foreground hover:bg-secondary/50"
+                  )}
+                >
+                  <Hash className="w-3.5 h-3.5" />
+                  Line Numbers
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowColorIndent(!showColorIndent)}
+                  className={cn(
+                    "h-8 text-xs font-normal border transition-colors",
+                    showColorIndent
+                      ? "bg-secondary border-primary/50 text-primary font-medium shadow-[0_0_8px_-2px_rgba(var(--primary),0.5)] hover:bg-secondary/80"
+                      : "bg-secondary/30 border-transparent text-muted-foreground hover:bg-secondary/50"
+                  )}
+                >
+                  <Palette className="w-3.5 h-3.5" />
+                  Color Indent
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setCollapseOnDoubleClick(!collapseOnDoubleClick)}
+                  className={cn(
+                    "h-8 text-xs font-normal border transition-colors",
+                    collapseOnDoubleClick
+                      ? "bg-secondary border-primary/50 text-primary font-medium shadow-[0_0_8px_-2px_rgba(var(--primary),0.5)] hover:bg-secondary/80"
+                      : "bg-secondary/30 border-transparent text-muted-foreground hover:bg-secondary/50"
+                  )}
+                >
+                  <MousePointerClick className="w-3.5 h-3.5" />
+                  Double Click
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setEnableTruncation(!enableTruncation)}
+                  className={cn(
+                    "h-8 text-xs font-normal border transition-colors",
+                    enableTruncation
+                      ? "bg-secondary border-primary/50 text-primary font-medium shadow-[0_0_8px_-2px_rgba(var(--primary),0.5)] hover:bg-secondary/80"
+                      : "bg-secondary/30 border-transparent text-muted-foreground hover:bg-secondary/50"
+                  )}
+                >
+                  <Scissors className="w-3.5 h-3.5" />
+                  Smart Truncation
+                </Button>
+
+                {enableTruncation && (
+                  <div className="flex items-center gap-2 ml-1 animate-in fade-in slide-in-from-left-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Limit</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={truncationLimit}
+                      onChange={(e) => handleTruncationChange(Number(e.target.value))}
+                      className="w-16 h-8 text-xs px-2"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 ml-auto">
+                  <Button
+                    size="sm"
+                    variant={viewMode === "table" ? "default" : "outline"}
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setViewMode(viewMode === "table" ? "tree" : "table")}
+                  >
+                    {viewMode === "table" ? "Tree View" : "Table View"}
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">Initial Expansion</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="h-8 text-xs font-normal justify-between w-[140px]">
+                      {defaultExpanded === true
+                        ? "Expand All"
+                        : defaultExpanded === false
+                          ? "Collapsed"
+                          : `Depth ${defaultExpanded}`}
+                      <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[140px]">
+                      {[
+                        { value: "false", label: "Collapsed" },
+                        { value: "true", label: "Expand All" },
+                        { value: "1", label: "Depth 1" },
+                        { value: "2", label: "Depth 2" },
+                        { value: "3", label: "Depth 3" }
+                      ].map((opt) => (
+                        <DropdownMenuItem
+                          key={opt.value}
+                          onClick={() => {
+                            if (opt.value === "true") setDefaultExpanded(true);
+                            else if (opt.value === "false") setDefaultExpanded(false);
+                            else setDefaultExpanded(Number(opt.value));
+                          }}
+                          className={cn(
+                            "text-xs inline-flex items-center gap-2 w-full",
+                            String(
+                              defaultExpanded === true
+                                ? "true"
+                                : defaultExpanded === false
+                                  ? "false"
+                                  : defaultExpanded
+                            ) === opt.value && "bg-muted text-foreground"
+                          )}
+                        >
+                          {opt.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
-            ) : viewMode === "table" ? (
-              tableData && tableData.cols.length > 0 ? (
-                <div className="h-full overflow-auto rounded-xl border border-border/60 bg-white dark:bg-zinc-950">
-                  <Table className="min-w-[900px]">
-                    <TableHeader className="bg-muted/60 sticky top-0 z-10">
-                      <TableRow className="hover:bg-transparent">
-                        {tableData.cols.map((col) => (
-                          <TableHead key={col} className="text-left">
-                            {col}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {tableData.rows.map((row: any, idx: number) => (
-                        <TableRow key={idx} className="hover:bg-muted/40">
-                          {tableData.cols.map((col) => {
-                            const val = row?.[col];
-                            let content: React.ReactNode = "";
-                            if (typeof val === "boolean") {
-                              content = (
-                                <span
-                                  className={cn(
-                                    "text-sm font-medium",
-                                    val ? "text-emerald-400" : "text-rose-400"
-                                  )}
-                                >
-                                  {val ? "true" : "false"}
-                                </span>
-                              );
-                            } else if (val === null || val === undefined) {
-                              content = <span className="text-muted-foreground/70">—</span>;
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-auto p-4">
+              {error ? (
+                <div className="flex h-full items-center justify-center text-sm text-zinc-500 dark:text-zinc-500">
+                  Fix JSON errors to view the output
+                </div>
+              ) : viewMode === "table" ? (
+                tableData && tableData.cols.length > 0 ? (
+                  <div className="h-full overflow-auto rounded-xl border border-border/60 bg-white dark:bg-zinc-950">
+                    <Table className="min-w-[900px]">
+                      <TableHeader className="bg-muted/60 sticky top-0 z-10">
+                        <TableRow className="hover:bg-transparent">
+                          {tableData.cols.map((col) => (
+                            <TableHead key={col} className="text-left">
+                              {col}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {tableData.rows.map((row: any, idx: number) => (
+                          <TableRow key={idx} className="hover:bg-muted/40">
+                            {tableData.cols.map((col) => {
+                              const val = row?.[col];
+                              let content: React.ReactNode = "";
+                              if (typeof val === "boolean") {
+                                content = (
+                                  <span
+                                    className={cn(
+                                      "text-sm font-medium",
+                                      val ? "text-emerald-400" : "text-rose-400"
+                                    )}
+                                  >
+                                    {val ? "true" : "false"}
+                                  </span>
+                                );
+                              } else if (val === null || val === undefined) {
+                                content = <span className="text-muted-foreground/70">—</span>;
                             } else if (typeof val === "object") {
                               content = <span className="font-mono text-xs text-muted-foreground">{JSON.stringify(val)}</span>;
-                            } else if (formatTimestamp(val)) {
-                              const formatted = formatTimestamp(val)!;
+                            } else if (formatTimestamp(col, val)) {
+                              const formatted = formatTimestamp(col, val)!;
                               content = (
                                 <div className="space-y-0.5">
                                   <span className="text-sm text-foreground">{formatted}</span>
                                   <div className="text-[11px] font-mono text-muted-foreground/70">{String(val)}</div>
                                 </div>
+                                );
+                              } else {
+                                content = String(val);
+                              }
+                              return (
+                                <TableCell key={col} className="whitespace-pre-wrap align-top">
+                                  {content}
+                                </TableCell>
                               );
-                            } else {
-                              content = String(val);
-                            }
-                            return (
-                              <TableCell key={col} className="whitespace-pre-wrap align-top">
-                                {content}
-                              </TableCell>
-                            );
-                          })}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  <div className="flex items-center justify-between px-4 py-3 text-xs text-muted-foreground border-t border-border/60">
-                    <span>{tableData.rows.length} row(s).</span>
+                            })}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <div className="flex items-center justify-between px-4 py-3 text-xs text-muted-foreground border-t border-border/60">
+                      <span>{tableData.rows.length} row(s).</span>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                    Table view available only for an array of objects.
+                  </div>
+                )
               ) : (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  Table view available only for an array of objects.
-                </div>
-              )
-            ) : (
-              <JsonViewer
-                key={`${String(defaultExpanded)}-${viewMode}`}
-                data={parsedJson}
-                showLineNumbers={showLineNumbers}
-                showColorIndent={showColorIndent}
-                collapseOn={collapseOnDoubleClick ? "doubleClick" : "click"}
-                truncation={{
-                  enabled: enableTruncation,
-                  itemsPerArray: truncationLimit
-                }}
-                defaultExpanded={defaultExpanded}
-                className="h-full"
-                title="Feature Showcase"
-              />
-            )}
-          </div>
+                <JsonViewer
+                  key={`${String(defaultExpanded)}-${viewMode}`}
+                  data={parsedJson}
+                  showLineNumbers={showLineNumbers}
+                  showColorIndent={showColorIndent}
+                  collapseOn={collapseOnDoubleClick ? "doubleClick" : "click"}
+                  truncation={{
+                    enabled: enableTruncation,
+                    itemsPerArray: truncationLimit
+                  }}
+                  defaultExpanded={defaultExpanded}
+                  className="h-full"
+                  title="Feature Showcase"
+                />
+              )}
+            </div>
           </div>
         </div>
       </main>
