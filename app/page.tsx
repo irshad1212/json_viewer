@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import JsonViewer from "@/components/ui/json-viewer";
+import Link from "next/link";
 import {
   AlertCircle,
   ChevronDown,
@@ -645,12 +646,11 @@ export default function Home() {
                     >
                       Compare JSON
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-xs cursor-pointer"
-                      onClick={() => toast.info("JSON Diff - Coming soon")}
-                    >
-                      JSON Diff
-                    </DropdownMenuItem>
+                    <Link href="/diff" target="_blank" rel="noopener noreferrer" passHref>
+                      <DropdownMenuItem className="text-xs cursor-pointer">
+                        JSON Diff
+                      </DropdownMenuItem>
+                    </Link>
                     <DropdownMenuItem
                       className="text-xs cursor-pointer"
                       onClick={() => toast.info("Convert to JSON - Coming soon")}
