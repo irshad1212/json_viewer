@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { FileJson, Wand2, ArrowLeft } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import Link from "next/link";
+import Editor from "@monaco-editor/react";
 
 type DiffLineType = "unchanged" | "removed" | "added";
 
@@ -169,12 +170,7 @@ export default function DiffPage() {
             {/* Header */}
             <header className="flex h-14 items-center justify-between gap-3 border-b px-6 bg-white dark:bg-zinc-950 dark:border-zinc-800 shrink-0">
                 <div className="flex items-center gap-4">
-                    <Link href="/">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground mr-2">
-                            <ArrowLeft className="h-4 w-4" />
-                        </Button>
-                    </Link>
-                    <FileJson className="w-5 h-5 text-indigo-500" />
+                    <FileJson className="w-5 h-5 text-indigo-500 ml-2" />
                     <h1 className="text-sm font-semibold text-foreground dark:text-zinc-100 uppercase tracking-wider">
                         Structural JSON Diff
                     </h1>
@@ -201,13 +197,24 @@ export default function DiffPage() {
                             <Wand2 className="h-3.5 w-3.5" />
                         </Button>
                     </div>
-                    <textarea
-                        className="flex-1 w-full h-full resize-none p-4 font-mono text-[13px] leading-6 focus:outline-none bg-transparent dark:text-zinc-100"
-                        placeholder="Paste original JSON..."
-                        value={textA}
-                        onChange={(e) => setTextA(e.target.value)}
-                        spellCheck={false}
-                    />
+                    <div className="flex-1 w-full relative">
+                        <Editor
+                            height="100%"
+                            language="json"
+                            theme="vs-dark"
+                            value={textA}
+                            onChange={(val) => setTextA(val || "")}
+                            options={{
+                                minimap: { enabled: false },
+                                fontSize: 13,
+                                wordWrap: "on",
+                                automaticLayout: true,
+                                scrollBeyondLastLine: false,
+                                lineNumbersMinChars: 3,
+                                padding: { top: 16 }
+                            }}
+                        />
+                    </div>
                 </div>
 
                 {/* JSON B Input */}
@@ -224,13 +231,24 @@ export default function DiffPage() {
                             <Wand2 className="h-3.5 w-3.5" />
                         </Button>
                     </div>
-                    <textarea
-                        className="flex-1 w-full h-full resize-none p-4 font-mono text-[13px] leading-6 focus:outline-none bg-transparent dark:text-zinc-100"
-                        placeholder="Paste modified JSON..."
-                        value={textB}
-                        onChange={(e) => setTextB(e.target.value)}
-                        spellCheck={false}
-                    />
+                    <div className="flex-1 w-full relative">
+                        <Editor
+                            height="100%"
+                            language="json"
+                            theme="vs-dark"
+                            value={textB}
+                            onChange={(val) => setTextB(val || "")}
+                            options={{
+                                minimap: { enabled: false },
+                                fontSize: 13,
+                                wordWrap: "on",
+                                automaticLayout: true,
+                                scrollBeyondLastLine: false,
+                                lineNumbersMinChars: 3,
+                                padding: { top: 16 }
+                            }}
+                        />
+                    </div>
                 </div>
 
                 {/* Diff Output */}

@@ -14,6 +14,7 @@ import { GitCompare, Wand2, Settings2 } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
+import Editor from "@monaco-editor/react";
 
 interface CompareResult {
     added: { path: string; valB: string }[];
@@ -343,13 +344,24 @@ export default function ComparePage() {
                             <Wand2 className="h-3.5 w-3.5" />
                         </Button>
                     </div>
-                    <textarea
-                        className="flex-1 w-full h-full resize-none p-4 font-mono text-[13px] leading-6 focus:outline-none bg-transparent dark:text-zinc-100"
-                        placeholder="Paste original JSON..."
-                        value={textA}
-                        onChange={(e) => setTextA(e.target.value)}
-                        spellCheck={false}
-                    />
+                    <div className="flex-1 w-full relative">
+                        <Editor
+                            height="100%"
+                            language="json"
+                            theme="vs-dark"
+                            value={textA}
+                            onChange={(val) => setTextA(val || "")}
+                            options={{
+                                minimap: { enabled: false },
+                                fontSize: 13,
+                                wordWrap: "on",
+                                automaticLayout: true,
+                                scrollBeyondLastLine: false,
+                                lineNumbersMinChars: 3,
+                                padding: { top: 16 }
+                            }}
+                        />
+                    </div>
                 </div>
 
                 {/* JSON B Input */}
@@ -366,13 +378,24 @@ export default function ComparePage() {
                             <Wand2 className="h-3.5 w-3.5" />
                         </Button>
                     </div>
-                    <textarea
-                        className="flex-1 w-full h-full resize-none p-4 font-mono text-[13px] leading-6 focus:outline-none bg-transparent dark:text-zinc-100"
-                        placeholder="Paste modified JSON..."
-                        value={textB}
-                        onChange={(e) => setTextB(e.target.value)}
-                        spellCheck={false}
-                    />
+                    <div className="flex-1 w-full relative">
+                        <Editor
+                            height="100%"
+                            language="json"
+                            theme="vs-dark"
+                            value={textB}
+                            onChange={(val) => setTextB(val || "")}
+                            options={{
+                                minimap: { enabled: false },
+                                fontSize: 13,
+                                wordWrap: "on",
+                                automaticLayout: true,
+                                scrollBeyondLastLine: false,
+                                lineNumbersMinChars: 3,
+                                padding: { top: 16 }
+                            }}
+                        />
+                    </div>
                 </div>
 
                 {/* Compare Output */}

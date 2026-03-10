@@ -20,6 +20,7 @@ import {
   Loader2,
   Wrench
 } from "lucide-react";
+import Editor from "@monaco-editor/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -541,137 +542,153 @@ export default function Home() {
               </div>
             </div>
             {!error && (
-              <div className="absolute top-2 right-4 z-10 flex items-center gap-2">
-                <input
-                  ref={jsonFileInputRef}
-                  type="file"
-                  accept="application/json"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    handleJsonFile(file);
-                    e.target.value = "";
-                  }}
-                />
-                <input
-                  ref={tableFileInputRef}
-                  type="file"
-                  accept=".csv,.xlsx"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    handleTableFile(file);
-                    e.target.value = "";
-                  }}
-                />
+              <>
+                <div className="absolute top-2 right-4 z-10 flex items-center gap-2">
+                  <input
+                    ref={jsonFileInputRef}
+                    type="file"
+                    accept="application/json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      handleJsonFile(file);
+                      e.target.value = "";
+                    }}
+                  />
+                  <input
+                    ref={tableFileInputRef}
+                    type="file"
+                    accept=".csv,.xlsx"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      handleTableFile(file);
+                      e.target.value = "";
+                    }}
+                  />
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger className="h-7 px-3 text-xs font-normal border rounded-md">
-                    Import
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-[160px]">
-                    <DropdownMenuItem
-                      className="text-xs w-full"
-                      onClick={() => jsonFileInputRef.current?.click()}
-                    >
-                      From JSON file
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-xs w-full"
-                      onClick={() => tableFileInputRef.current?.click()}
-                    >
-                      From CSV/Excel (.csv, .xlsx)
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="h-7 px-3 text-xs font-normal border rounded-md">
+                      Import
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[160px]">
+                      <DropdownMenuItem
+                        className="text-xs w-full"
+                        onClick={() => jsonFileInputRef.current?.click()}
+                      >
+                        From JSON file
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-xs w-full"
+                        onClick={() => tableFileInputRef.current?.click()}
+                      >
+                        From CSV/Excel (.csv, .xlsx)
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => {
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => {
+                      try {
+                        const parsed = JSON.parse(jsonText || "{}");
+                        const pretty = JSON.stringify(parsed, null, 2);
+                        setJsonText(pretty);
+                        setParsedJson(parsed);
+                        setError(null);
+                      } catch (err: any) {
+                        setError(err.message || "Invalid JSON");
+                      }
+                    }}
+                  >
+                    Beautify
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    disabled={!jsonText.trim()}
+                    onClick={() => {
+                      setSaveName("");
+                      setShowSaveDialog(true);
+                    }}
+                  >
+                    <Save className="h-3.5 w-3.5 mr-1" />
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setShowHistoryDialog(true)}
+                  >
+                    <History className="h-3.5 w-3.5 mr-1" />
+                    History
+                  </Button>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 h-7 px-2 text-xs bg-blue-600 hover:bg-blue-700 text-white border-0 rounded-md">
+                      <Wrench className="h-3.5 w-3.5 mr-1" />
+                      Tools
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[180px]">
+                      <DropdownMenuItem
+                        className="text-xs cursor-pointer"
+                        onClick={() => toast.info("Generate Data Model - Coming soon")}
+                      >
+                        Generate Data Model
+                      </DropdownMenuItem>
+                      <Link href="/compare" passHref>
+                        <DropdownMenuItem className="text-xs cursor-pointer">
+                          Compare JSON
+                        </DropdownMenuItem>
+                      </Link>
+                      <Link href="/diff" passHref>
+                        <DropdownMenuItem className="text-xs cursor-pointer">
+                          JSON Diff
+                        </DropdownMenuItem>
+                      </Link>
+                      <DropdownMenuItem
+                        className="text-xs cursor-pointer"
+                        onClick={() => toast.info("Convert to JSON - Coming soon")}
+                      >
+                        Convert to JSON
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <Editor
+                  height="100%"
+                  language="json"
+                  theme="vs-dark"
+                  value={jsonText}
+                  onChange={(val) => {
+                    const newText = val || "";
+                    setJsonText(newText);
                     try {
-                      const parsed = JSON.parse(jsonText || "{}");
-                      const pretty = JSON.stringify(parsed, null, 2);
-                      setJsonText(pretty);
+                      const parsed = JSON.parse(newText);
                       setParsedJson(parsed);
                       setError(null);
                     } catch (err: any) {
                       setError(err.message || "Invalid JSON");
                     }
                   }}
-                >
-                  Beautify
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-xs"
-                  disabled={!jsonText.trim()}
-                  onClick={() => {
-                    setSaveName("");
-                    setShowSaveDialog(true);
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    wordWrap: "on",
+                    automaticLayout: true,
+                    scrollBeyondLastLine: false,
+                    lineNumbersMinChars: 3,
+                    padding: { top: 16 }
                   }}
-                >
-                  <Save className="h-3.5 w-3.5 mr-1" />
-                  Save
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => setShowHistoryDialog(true)}
-                >
-                  <History className="h-3.5 w-3.5 mr-1" />
-                  History
-                </Button>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 h-7 px-2 text-xs bg-blue-600 hover:bg-blue-700 text-white border-0 rounded-md">
-                    <Wrench className="h-3.5 w-3.5 mr-1" />
-                    Tools
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-[180px]">
-                    <DropdownMenuItem
-                      className="text-xs cursor-pointer"
-                      onClick={() => toast.info("Generate Data Model - Coming soon")}
-                    >
-                      Generate Data Model
-                    </DropdownMenuItem>
-                    <Link href="/compare" passHref>
-                      <DropdownMenuItem className="text-xs cursor-pointer">
-                        Compare JSON
-                      </DropdownMenuItem>
-                    </Link>
-                    <Link href="/diff" passHref>
-                      <DropdownMenuItem className="text-xs cursor-pointer">
-                        JSON Diff
-                      </DropdownMenuItem>
-                    </Link>
-                    <DropdownMenuItem
-                      className="text-xs cursor-pointer"
-                      onClick={() => toast.info("Convert to JSON - Coming soon")}
-                    >
-                      Convert to JSON
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                />
+              </>
             )}
-            <textarea
-              value={jsonText}
-              onChange={handleTextChange}
-              className={cn(
-                "flex-1 min-h-0 resize-none p-4 font-mono text-sm focus:outline-none bg-transparent text-foreground",
-                "font-sans",
-                "dark:bg-zinc-950 dark:text-zinc-100",
-                error && "focus:ring-1 focus:ring-inset focus:ring-red-500 rounded-none ring-1 ring-inset ring-red-500"
-              )}
-              placeholder="Paste your JSON here..."
-              spellCheck={false}
-            />
           </div>
 
           {/* Right Pane - Viewer */}
@@ -1039,13 +1056,6 @@ export default function Home() {
                 </Table>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {confirmDeleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-sm rounded-lg border border-border/60 bg-white p-4 shadow-xl dark:bg-zinc-950">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold">Delete entry?</h3>
               <button onClick={() => setConfirmDeleteId(null)} aria-label="Close">
@@ -1071,23 +1081,28 @@ export default function Home() {
             </div>
           </div>
         </div>
-      )}
-      {isDragOver && (
-        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="rounded-xl border border-white/30 bg-white/10 px-6 py-4 text-center text-sm font-medium text-white shadow-2xl backdrop-blur">
-            Drop a JSON / CSV / Excel file to import
+      )
+      }
+      {
+        isDragOver && (
+          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="rounded-xl border border-white/30 bg-white/10 px-6 py-4 text-center text-sm font-medium text-white shadow-2xl backdrop-blur">
+              Drop a JSON / CSV / Excel file to import
+            </div>
           </div>
-        </div>
-      )}
-      {isProcessing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3 bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-2xl border border-border">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm font-medium">Processing data...</p>
+        )
+      }
+      {
+        isProcessing && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3 bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-2xl border border-border">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm font-medium">Processing data...</p>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
       <Toaster position="bottom-center" />
-    </div>
+    </div >
   );
 }
