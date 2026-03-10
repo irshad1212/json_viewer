@@ -97,6 +97,7 @@ export default function Home() {
   const [jsonText, setJsonText] = useState(() => JSON.stringify(initialData, null, 2));
   const [parsedJson, setParsedJson] = useState<Record<string, any>>(initialData);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [showColorIndent, setShowColorIndent] = useState(false);
@@ -113,6 +114,7 @@ export default function Home() {
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
     setJsonText(text);
+    setNotice(null);
 
     if (!text.trim()) {
       setParsedJson({});
@@ -133,6 +135,7 @@ export default function Home() {
     if (Number.isNaN(value) || value < 1) return;
     setTruncationLimit(value);
   };
+  const CHUNK_SIZE_XLSX = 500;
 
   const formatTimestamp = (value: unknown): string | null => {
     if (typeof value === "number" && Number.isFinite(value)) {
@@ -179,8 +182,10 @@ export default function Home() {
         setJsonText(pretty);
         setParsedJson(parsed);
         setError(null);
+        setNotice(null);
       } catch (err: any) {
         setError(err.message || "Invalid JSON file");
+        setNotice(null);
       }
     });
   };
@@ -192,21 +197,67 @@ export default function Home() {
       if (ext === "csv") {
         const Papa = await loadPapa();
         const text = await file.text();
-        const result = Papa.parse(text, {
-          header: true,
-          skipEmptyLines: true,
-          dynamicTyping: false
+        setNotice("Loading CSV...");
+        rows = await new Promise<any[]>((resolve, reject) => {
+          const acc: any[] = [];
+          Papa.parse(text, {
+            header: true,
+            skipEmptyLines: true,
+            dynamicTyping: false,
+            worker: true,
+            chunk: (result) => {
+              acc.push(...result.data);
+              if (acc.length % 2000 === 0) {
+                setNotice(`Loading CSV... ${acc.length} rows`);
+              }
+            },
+            complete: () => {
+              setNotice(`Loaded ${acc.length} rows`);
+              resolve(acc);
+            },
+            error: (err) => reject(err)
+          });
         });
-        if (result.errors?.length) {
-          throw new Error(result.errors[0].message);
-        }
-        rows = result.data as any[];
       } else if (ext === "xlsx") {
         const buf = await file.arrayBuffer();
         const XLSX = await loadXlsx();
         const wb = XLSX.read(buf, { type: "array" });
         const first = wb.SheetNames[0];
-        rows = XLSX.utils.sheet_to_json(wb.Sheets[first]);
+        const sheet = wb.Sheets[first];
+        const ref = sheet["!ref"];
+        if (!ref) throw new Error("Empty sheet");
+        const range = XLSX.utils.decode_range(ref);
+        let header: any[] | null = null;
+        rows = [];
+        setNotice("Loading Excel...");
+        for (let r = range.s.r; r <= range.e.r; r += CHUNK_SIZE_XLSX) {
+          const end = Math.min(r + CHUNK_SIZE_XLSX - 1, range.e.r);
+          const chunkRange = { s: { r, c: range.s.c }, e: { r: end, c: range.e.c } };
+          const chunk = XLSX.utils.sheet_to_json<any[]>(sheet, {
+            range: chunkRange,
+            header: 1,
+            raw: true,
+            defval: null
+          });
+          if (!chunk.length) continue;
+          if (!header) {
+            header = chunk.shift() || [];
+          }
+          const mapped = chunk.map((rowArr) => {
+            const obj: Record<string, any> = {};
+            header!.forEach((key, idx) => {
+              const colKey = key == null || key === "" ? `col_${idx + 1}` : String(key);
+              obj[colKey] = rowArr[idx];
+            });
+            return obj;
+          });
+          rows.push(...mapped);
+          if (rows.length % 2000 === 0) {
+            setNotice(`Loading Excel... ${rows.length} rows`);
+            await new Promise((res) => setTimeout(res, 0));
+          }
+        }
+        setNotice(`Loaded ${rows.length} rows`);
       } else {
         throw new Error("Unsupported file type");
       }
@@ -214,8 +265,10 @@ export default function Home() {
       setJsonText(pretty);
       setParsedJson(rows as any);
       setError(null);
+      if (!rows.length) setNotice("No rows found in file.");
     } catch (err: any) {
       setError(err.message || "Invalid file");
+      setNotice(null);
     }
   };
 
@@ -291,12 +344,17 @@ export default function Home() {
           <div className="flex w-1/2 min-w-[25%] flex-col border-r dark:border-zinc-800 bg-white dark:bg-zinc-950 relative">
             <div className="flex h-12 items-center justify-between border-b px-4 dark:border-zinc-800">
               <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Input</h2>
-              {error && (
-                <div className="flex items-center gap-1.5 text-xs text-red-500">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  <span>{error}</span>
-                </div>
-              )}
+              <div className="flex items-center gap-3">
+                {notice && !error && (
+                  <div className="text-[11px] text-muted-foreground">{notice}</div>
+                )}
+                {error && (
+                  <div className="flex items-center gap-1.5 text-xs text-red-500">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    <span>{error}</span>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="absolute top-2 right-4 z-10 flex items-center gap-2">
               <input
