@@ -22,6 +22,7 @@ interface JsonViewerProps {
   collapseOn?: "click" | "doubleClick";
   defaultExpanded?: boolean | number;
   title?: string;
+  extraActions?: React.ReactNode;
 }
 
 interface TruncationSettings {
@@ -418,7 +419,8 @@ const JsonViewer: React.FC<JsonViewerProps> = ({
   showColorIndent = false,
   collapseOn = "click",
   defaultExpanded = false,
-  title
+  title,
+  extraActions
 }) => {
   const isMobile = useIsMobile();
 
@@ -480,31 +482,34 @@ const JsonViewer: React.FC<JsonViewerProps> = ({
         <div className="text-xs font-medium text-muted-foreground px-2">
           {title}
         </div>
-        <div className="flex items-center rounded-md border bg-muted/50 overflow-hidden">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={expandAll}
-            className="h-7 px-2 text-xs hover:bg-muted rounded-none"
-            title="Expand All"
-          >
-            Expand All
-          </Button>
-          <Separator orientation="vertical" className="h-4" />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={collapseAll}
-            className="h-7 px-2 text-xs hover:bg-muted rounded-none"
-            title="Collapse All"
-          >
-            Collapse All
-          </Button>
-          <Separator orientation="vertical" className="h-4" />
-          <CopyButton
-            value={JSON.stringify(data, null, 2)}
-            className="static size-7 bg-transparent hover:bg-muted hover:opacity-100 focus-visible:opacity-100 text-foreground rounded-none"
-          />
+        <div className="flex items-center gap-2">
+          {extraActions}
+          <div className="flex items-center rounded-md border bg-muted/50 overflow-hidden">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={expandAll}
+              className="h-7 px-2 text-xs hover:bg-muted rounded-none"
+              title="Expand All"
+            >
+              Expand All
+            </Button>
+            <Separator orientation="vertical" className="h-4" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={collapseAll}
+              className="h-7 px-2 text-xs hover:bg-muted rounded-none"
+              title="Collapse All"
+            >
+              Collapse All
+            </Button>
+            <Separator orientation="vertical" className="h-4" />
+            <CopyButton
+              value={JSON.stringify(data, null, 2)}
+              className="static size-7 bg-transparent hover:bg-muted hover:opacity-100 focus-visible:opacity-100 text-foreground rounded-none"
+            />
+          </div>
         </div>
       </div>
       <div className="w-full overflow-auto flex-1 p-4 pt-0">

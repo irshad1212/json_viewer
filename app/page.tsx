@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import JsonViewer from "@/components/ui/json-viewer";
 import { AlertCircle, ChevronDown, Hash, Monitor, Moon, MousePointerClick, Palette, Scissors, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuItem
 } from "@/components/ui/dropdown-menu";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 let xlsxLoader: Promise<any> | null = null;
 let papaLoader: Promise<any> | null = null;
@@ -105,6 +106,7 @@ export default function Home() {
   const [defaultExpanded, setDefaultExpanded] = useState<boolean | number>(false);
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
   const [mounted, setMounted] = useState(false);
+  const [viewMode, setViewMode] = useState<"tree" | "table">("tree");
   const jsonFileInputRef = useRef<HTMLInputElement | null>(null);
   const tableFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -130,6 +132,43 @@ export default function Home() {
   const handleTruncationChange = (value: number) => {
     if (Number.isNaN(value) || value < 1) return;
     setTruncationLimit(value);
+  };
+
+  const formatTimestamp = (value: unknown): string | null => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const digits = String(Math.abs(value)).length;
+      const millis = digits === 13 ? value : digits === 10 ? value * 1000 : null;
+      if (millis) {
+        const d = new Date(millis);
+        if (!Number.isNaN(d.getTime())) {
+          return d.toLocaleString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            timeZoneName: "short"
+          });
+        }
+      }
+    }
+    if (typeof value === "string") {
+      const parsed = Date.parse(value);
+      if (!Number.isNaN(parsed)) {
+        const d = new Date(parsed);
+        return d.toLocaleString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          timeZoneName: "short"
+        });
+      }
+    }
+    return null;
   };
 
   const handleJsonFile = (file: File) => {
@@ -179,6 +218,19 @@ export default function Home() {
       setError(err.message || "Invalid file");
     }
   };
+
+  const tableData = useMemo(() => {
+    if (!Array.isArray(parsedJson)) return null;
+    const cols = Array.from(
+      parsedJson.reduce<Set<string>>((set, row) => {
+        if (row && typeof row === "object" && !Array.isArray(row)) {
+          Object.keys(row).forEach((k) => set.add(k));
+        }
+        return set;
+      }, new Set<string>())
+    );
+    return { cols, rows: parsedJson };
+  }, [parsedJson]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -332,15 +384,17 @@ export default function Home() {
           <div className="flex h-12 items-center justify-between border-b px-4 dark:border-zinc-800 bg-white dark:bg-zinc-950">
             <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Viewer</h2>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="hidden sm:inline">Collapse on</span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-xs"
-                onClick={() => setCollapseOnDoubleClick(!collapseOnDoubleClick)}
-              >
-                {collapseOnDoubleClick ? "Double click" : "Single click"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <span className="hidden sm:inline">Collapse on</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setCollapseOnDoubleClick(!collapseOnDoubleClick)}
+                >
+                  {collapseOnDoubleClick ? "Double click" : "Single click"}
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -417,6 +471,17 @@ export default function Home() {
               )}
 
               <div className="flex items-center gap-2 ml-auto">
+                <Button
+                  size="sm"
+                  variant={viewMode === "table" ? "default" : "outline"}
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setViewMode(viewMode === "table" ? "tree" : "table")}
+                >
+                  {viewMode === "table" ? "Tree View" : "Table View"}
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2">
                 <Label className="text-xs text-muted-foreground whitespace-nowrap">Initial Expansion</Label>
                 <DropdownMenu>
                   <DropdownMenuTrigger className="h-8 text-xs font-normal justify-between w-[140px]">
@@ -467,9 +532,73 @@ export default function Home() {
               <div className="flex h-full items-center justify-center text-sm text-zinc-500 dark:text-zinc-500">
                 Fix JSON errors to view the output
               </div>
+            ) : viewMode === "table" ? (
+              tableData && tableData.cols.length > 0 ? (
+                <div className="h-full overflow-auto rounded-xl border border-border/60 bg-white dark:bg-zinc-950">
+                  <Table className="min-w-[900px]">
+                    <TableHeader className="bg-muted/60 sticky top-0 z-10">
+                      <TableRow className="hover:bg-transparent">
+                        {tableData.cols.map((col) => (
+                          <TableHead key={col} className="text-left">
+                            {col}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tableData.rows.map((row: any, idx: number) => (
+                        <TableRow key={idx} className="hover:bg-muted/40">
+                          {tableData.cols.map((col) => {
+                            const val = row?.[col];
+                            let content: React.ReactNode = "";
+                            if (typeof val === "boolean") {
+                              content = (
+                                <span
+                                  className={cn(
+                                    "text-sm font-medium",
+                                    val ? "text-emerald-400" : "text-rose-400"
+                                  )}
+                                >
+                                  {val ? "true" : "false"}
+                                </span>
+                              );
+                            } else if (val === null || val === undefined) {
+                              content = <span className="text-muted-foreground/70">—</span>;
+                            } else if (typeof val === "object") {
+                              content = <span className="font-mono text-xs text-muted-foreground">{JSON.stringify(val)}</span>;
+                            } else if (formatTimestamp(val)) {
+                              const formatted = formatTimestamp(val)!;
+                              content = (
+                                <div className="space-y-0.5">
+                                  <span className="text-sm text-foreground">{formatted}</span>
+                                  <div className="text-[11px] font-mono text-muted-foreground/70">{String(val)}</div>
+                                </div>
+                              );
+                            } else {
+                              content = String(val);
+                            }
+                            return (
+                              <TableCell key={col} className="whitespace-pre-wrap align-top">
+                                {content}
+                              </TableCell>
+                            );
+                          })}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <div className="flex items-center justify-between px-4 py-3 text-xs text-muted-foreground border-t border-border/60">
+                    <span>{tableData.rows.length} row(s).</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  Table view available only for an array of objects.
+                </div>
+              )
             ) : (
               <JsonViewer
-                key={String(defaultExpanded)}
+                key={`${String(defaultExpanded)}-${viewMode}`}
                 data={parsedJson}
                 showLineNumbers={showLineNumbers}
                 showColorIndent={showColorIndent}
