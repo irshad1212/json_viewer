@@ -610,7 +610,7 @@ export default function Home() {
               onChange={handleTextChange}
               className={cn(
                 "flex-1 min-h-0 resize-none p-4 font-mono text-sm focus:outline-none bg-transparent text-foreground",
-                "font-['SFMono-Regular','Consolas','Liberation Mono','Menlo','Monaco','Fira Code','JetBrains Mono',monospace]",
+                "font-sans",
                 "dark:bg-zinc-950 dark:text-zinc-100",
                 error && "focus:ring-1 focus:ring-inset focus:ring-red-500 rounded-none ring-1 ring-inset ring-red-500"
               )}
