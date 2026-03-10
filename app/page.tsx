@@ -640,13 +640,12 @@ export default function Home() {
                     >
                       Generate Data Model
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-xs cursor-pointer"
-                      onClick={() => toast.info("Compare JSON - Coming soon")}
-                    >
-                      Compare JSON
-                    </DropdownMenuItem>
-                    <Link href="/diff" target="_blank" rel="noopener noreferrer" passHref>
+                    <Link href="/compare" passHref>
+                      <DropdownMenuItem className="text-xs cursor-pointer">
+                        Compare JSON
+                      </DropdownMenuItem>
+                    </Link>
+                    <Link href="/diff" passHref>
                       <DropdownMenuItem className="text-xs cursor-pointer">
                         JSON Diff
                       </DropdownMenuItem>

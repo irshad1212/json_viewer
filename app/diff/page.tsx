@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { FileJson, Wand2 } from "lucide-react";
+import { FileJson, Wand2, ArrowLeft } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import Link from "next/link";
 
@@ -169,6 +169,11 @@ export default function DiffPage() {
             {/* Header */}
             <header className="flex h-14 items-center justify-between gap-3 border-b px-6 bg-white dark:bg-zinc-950 dark:border-zinc-800 shrink-0">
                 <div className="flex items-center gap-4">
+                    <Link href="/">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground mr-2">
+                            <ArrowLeft className="h-4 w-4" />
+                        </Button>
+                    </Link>
                     <FileJson className="w-5 h-5 text-indigo-500" />
                     <h1 className="text-sm font-semibold text-foreground dark:text-zinc-100 uppercase tracking-wider">
                         Structural JSON Diff
