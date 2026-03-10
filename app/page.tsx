@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import JsonViewer from "@/components/ui/json-viewer";
 import { AlertCircle, ChevronDown, Hash, Monitor, Moon, MousePointerClick, Palette, Scissors, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,51 @@ import {
   DropdownMenuTrigger,
   DropdownMenuItem
 } from "@/components/ui/dropdown-menu";
+
+let xlsxLoader: Promise<any> | null = null;
+let papaLoader: Promise<any> | null = null;
+
+const loadXlsx = () => {
+  if (xlsxLoader) return xlsxLoader;
+  if (typeof document === "undefined") {
+    return Promise.reject(new Error("XLSX unavailable during SSR"));
+  }
+  xlsxLoader = new Promise((resolve, reject) => {
+    const existing = (window as any).XLSX;
+    if (existing) {
+      resolve(existing);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    script.async = true;
+    script.onload = () => resolve((window as any).XLSX);
+    script.onerror = () => reject(new Error("Failed to load XLSX parser"));
+    document.body.appendChild(script);
+  });
+  return xlsxLoader;
+};
+
+const loadPapa = () => {
+  if (papaLoader) return papaLoader;
+  if (typeof document === "undefined") {
+    return Promise.reject(new Error("PapaParse unavailable during SSR"));
+  }
+  papaLoader = new Promise((resolve, reject) => {
+    const existing = (window as any).Papa;
+    if (existing) {
+      resolve(existing);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js";
+    script.async = true;
+    script.onload = () => resolve((window as any).Papa);
+    script.onerror = () => reject(new Error("Failed to load PapaParse"));
+    document.body.appendChild(script);
+  });
+  return papaLoader;
+};
 const initialData = {
   id: "0001",
   type: "donut",
@@ -60,6 +105,8 @@ export default function Home() {
   const [defaultExpanded, setDefaultExpanded] = useState<boolean | number>(false);
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
   const [mounted, setMounted] = useState(false);
+  const jsonFileInputRef = useRef<HTMLInputElement | null>(null);
+  const tableFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
@@ -83,6 +130,54 @@ export default function Home() {
   const handleTruncationChange = (value: number) => {
     if (Number.isNaN(value) || value < 1) return;
     setTruncationLimit(value);
+  };
+
+  const handleJsonFile = (file: File) => {
+    file.text().then((text) => {
+      try {
+        const parsed = JSON.parse(text);
+        const pretty = JSON.stringify(parsed, null, 2);
+        setJsonText(pretty);
+        setParsedJson(parsed);
+        setError(null);
+      } catch (err: any) {
+        setError(err.message || "Invalid JSON file");
+      }
+    });
+  };
+
+  const handleTableFile = async (file: File) => {
+    const ext = file.name.toLowerCase().split(".").pop();
+    try {
+      let rows: any[] = [];
+      if (ext === "csv") {
+        const Papa = await loadPapa();
+        const text = await file.text();
+        const result = Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          dynamicTyping: false
+        });
+        if (result.errors?.length) {
+          throw new Error(result.errors[0].message);
+        }
+        rows = result.data as any[];
+      } else if (ext === "xlsx") {
+        const buf = await file.arrayBuffer();
+        const XLSX = await loadXlsx();
+        const wb = XLSX.read(buf, { type: "array" });
+        const first = wb.SheetNames[0];
+        rows = XLSX.utils.sheet_to_json(wb.Sheets[first]);
+      } else {
+        throw new Error("Unsupported file type");
+      }
+      const pretty = JSON.stringify(rows, null, 2);
+      setJsonText(pretty);
+      setParsedJson(rows as any);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message || "Invalid file");
+    }
   };
 
   useEffect(() => {
@@ -151,26 +246,73 @@ export default function Home() {
                 </div>
               )}
             </div>
-            {!error && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-xs absolute top-2 right-4 z-10"
-                onClick={() => {
-                  try {
-                    const parsed = JSON.parse(jsonText || "{}");
-                    const pretty = JSON.stringify(parsed, null, 2);
-                    setJsonText(pretty);
-                    setParsedJson(parsed);
-                    setError(null);
-                  } catch (err: any) {
-                    setError(err.message || "Invalid JSON");
-                  }
+            <div className="absolute top-2 right-4 z-10 flex items-center gap-2">
+              <input
+                ref={jsonFileInputRef}
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  handleJsonFile(file);
+                  e.target.value = "";
                 }}
-              >
-                Beautify
-              </Button>
-            )}
+              />
+              <input
+                ref={tableFileInputRef}
+                type="file"
+                accept=".csv,.xlsx"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  handleTableFile(file);
+                  e.target.value = "";
+                }}
+              />
+
+              <DropdownMenu>
+                <DropdownMenuTrigger className="h-7 px-3 text-xs font-normal border rounded-md">
+                  Import
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-[160px]">
+                  <DropdownMenuItem
+                    className="text-xs w-full"
+                    onClick={() => jsonFileInputRef.current?.click()}
+                  >
+                    From JSON file
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-xs w-full"
+                    onClick={() => tableFileInputRef.current?.click()}
+                  >
+                    From CSV/Excel (.csv, .xlsx)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {!error && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => {
+                    try {
+                      const parsed = JSON.parse(jsonText || "{}");
+                      const pretty = JSON.stringify(parsed, null, 2);
+                      setJsonText(pretty);
+                      setParsedJson(parsed);
+                      setError(null);
+                    } catch (err: any) {
+                      setError(err.message || "Invalid JSON");
+                    }
+                  }}
+                >
+                  Beautify
+                </Button>
+              )}
+            </div>
             <textarea
               value={jsonText}
               onChange={handleTextChange}
