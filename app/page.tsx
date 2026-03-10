@@ -15,7 +15,9 @@ import {
   Scissors,
   Sun,
   Trash2,
-  X
+  X,
+  Loader2,
+  Wrench
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -114,6 +116,10 @@ export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
   const [mounted, setMounted] = useState(false);
   const [viewMode, setViewMode] = useState<"tree" | "table">("tree");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 100;
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const jsonFileInputRef = useRef<HTMLInputElement | null>(null);
   const tableFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -128,13 +134,18 @@ export default function Home() {
       return;
     }
 
-    try {
-      const parsed = JSON.parse(text);
-      setParsedJson(parsed);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || "Invalid JSON");
-    }
+    setIsProcessing(true);
+    setTimeout(() => {
+      try {
+        const parsed = JSON.parse(text);
+        setParsedJson(parsed);
+        setError(null);
+      } catch (err: any) {
+        setError(err.message || "Invalid JSON");
+      } finally {
+        setIsProcessing(false);
+      }
+    }, 10);
   };
 
   const handleTruncationChange = (value: number) => {
@@ -216,24 +227,31 @@ export default function Home() {
   };
 
   const handleJsonFile = (file: File) => {
+    setIsProcessing(true);
     file.text().then((text) => {
-      try {
-        const parsed = JSON.parse(text);
-        const pretty = JSON.stringify(parsed, null, 2);
-        setJsonText(pretty);
-        setParsedJson(parsed);
-        setError(null);
-        setNotice(null);
-        toast.success(`Imported ${file.name}`);
-      } catch (err: any) {
-        setError(err.message || "Invalid JSON file");
-        setNotice(null);
-        toast.error("Invalid JSON file");
-      }
+      setTimeout(() => {
+        try {
+          const parsed = JSON.parse(text);
+          const pretty = JSON.stringify(parsed, null, 2);
+          setJsonText(pretty);
+          setParsedJson(parsed);
+          setError(null);
+          setNotice(null);
+          toast.success(`Imported ${file.name}`);
+        } catch (err: any) {
+          setError(err.message || "Invalid JSON file");
+          setNotice(null);
+          toast.error("Invalid JSON file");
+        } finally {
+          setIsProcessing(false);
+        }
+      }, 10);
     });
   };
 
   const handleTableFile = async (file: File) => {
+    setIsProcessing(true);
+    await new Promise((res) => setTimeout(res, 10));
     const ext = file.name.toLowerCase().split(".").pop();
     try {
       let rows: any[] = [];
@@ -309,6 +327,8 @@ export default function Home() {
       setError(err.message || "Invalid file");
       setNotice(null);
       toast.error(err.message || "Invalid file");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -380,8 +400,11 @@ export default function Home() {
 
   const tableData = useMemo(() => {
     if (!Array.isArray(parsedJson)) return null;
+
+    const sampleRows = parsedJson.length > 500 ? parsedJson.slice(0, 500) : parsedJson;
+
     const cols = Array.from(
-      parsedJson.reduce<Set<string>>((set, row) => {
+      sampleRows.reduce<Set<string>>((set, row) => {
         if (row && typeof row === "object" && !Array.isArray(row)) {
           Object.keys(row).forEach((k) => set.add(k));
         }
@@ -603,6 +626,39 @@ export default function Home() {
                   <History className="h-3.5 w-3.5 mr-1" />
                   History
                 </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 h-7 px-2 text-xs bg-blue-600 hover:bg-blue-700 text-white border-0 rounded-md">
+                    <Wrench className="h-3.5 w-3.5 mr-1" />
+                    Tools
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-[180px]">
+                    <DropdownMenuItem
+                      className="text-xs cursor-pointer"
+                      onClick={() => toast.info("Generate Data Model - Coming soon")}
+                    >
+                      Generate Data Model
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-xs cursor-pointer"
+                      onClick={() => toast.info("Compare JSON - Coming soon")}
+                    >
+                      Compare JSON
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-xs cursor-pointer"
+                      onClick={() => toast.info("JSON Diff - Coming soon")}
+                    >
+                      JSON Diff
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-xs cursor-pointer"
+                      onClick={() => toast.info("Convert to JSON - Coming soon")}
+                    >
+                      Convert to JSON
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             )}
             <textarea
@@ -715,7 +771,17 @@ export default function Home() {
                     size="sm"
                     variant={viewMode === "table" ? "default" : "outline"}
                     className="h-7 px-2 text-xs"
-                    onClick={() => setViewMode(viewMode === "table" ? "tree" : "table")}
+                    onClick={() => {
+                      if (viewMode === "tree") {
+                        setIsProcessing(true);
+                        setTimeout(() => {
+                          setViewMode("table");
+                          setIsProcessing(false);
+                        }, 50);
+                      } else {
+                        setViewMode("tree");
+                      }
+                    }}
                   >
                     {viewMode === "table" ? "Tree View" : "Table View"}
                   </Button>
@@ -786,49 +852,77 @@ export default function Home() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {tableData.rows.map((row: any, idx: number) => (
-                          <TableRow key={idx} className="hover:bg-muted/40">
-                            {tableData.cols.map((col) => {
-                              const val = row?.[col];
-                              let content: React.ReactNode = "";
-                              if (typeof val === "boolean") {
-                                content = (
-                                  <span
-                                    className={cn(
-                                      "text-sm font-medium",
-                                      val ? "text-emerald-400" : "text-rose-400"
-                                    )}
-                                  >
-                                    {val ? "true" : "false"}
-                                  </span>
+                        {tableData.rows
+                          .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+                          .map((row: any, idx: number) => (
+                            <TableRow key={idx} className="hover:bg-muted/40">
+                              {tableData.cols.map((col) => {
+                                const val = row?.[col];
+                                let content: React.ReactNode = "";
+                                if (typeof val === "boolean") {
+                                  content = (
+                                    <span
+                                      className={cn(
+                                        "text-sm font-medium",
+                                        val ? "text-emerald-400" : "text-rose-400"
+                                      )}
+                                    >
+                                      {val ? "true" : "false"}
+                                    </span>
+                                  );
+                                } else if (val === null || val === undefined) {
+                                  content = <span className="text-muted-foreground/70">—</span>;
+                                } else if (typeof val === "object") {
+                                  content = <span className="font-mono text-xs text-muted-foreground">{JSON.stringify(val)}</span>;
+                                } else if (formatTimestamp(col, val)) {
+                                  const formatted = formatTimestamp(col, val)!;
+                                  content = (
+                                    <div className="space-y-0.5">
+                                      <span className="text-sm text-foreground">{formatted}</span>
+                                      <div className="text-[11px] font-mono text-muted-foreground/70">{String(val)}</div>
+                                    </div>
+                                  );
+                                } else {
+                                  content = String(val);
+                                }
+                                return (
+                                  <TableCell key={col} className="whitespace-pre-wrap align-top">
+                                    {content}
+                                  </TableCell>
                                 );
-                              } else if (val === null || val === undefined) {
-                                content = <span className="text-muted-foreground/70">—</span>;
-                              } else if (typeof val === "object") {
-                                content = <span className="font-mono text-xs text-muted-foreground">{JSON.stringify(val)}</span>;
-                              } else if (formatTimestamp(col, val)) {
-                                const formatted = formatTimestamp(col, val)!;
-                                content = (
-                                  <div className="space-y-0.5">
-                                    <span className="text-sm text-foreground">{formatted}</span>
-                                    <div className="text-[11px] font-mono text-muted-foreground/70">{String(val)}</div>
-                                  </div>
-                                );
-                              } else {
-                                content = String(val);
-                              }
-                              return (
-                                <TableCell key={col} className="whitespace-pre-wrap align-top">
-                                  {content}
-                                </TableCell>
-                              );
-                            })}
-                          </TableRow>
-                        ))}
+                              })}
+                            </TableRow>
+                          ))}
                       </TableBody>
                     </Table>
                     <div className="flex items-center justify-between px-4 py-3 text-xs text-muted-foreground border-t border-border/60">
-                      <span>{tableData.rows.length} row(s).</span>
+                      <span>
+                        Showing {tableData.rows.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1} to{" "}
+                        {Math.min(currentPage * ITEMS_PER_PAGE, tableData.rows.length)} of {tableData.rows.length} row(s).
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={currentPage === 1}
+                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        >
+                          Previous
+                        </Button>
+                        <span className="min-w-[4rem] text-center">
+                          Page {currentPage} of {Math.max(1, Math.ceil(tableData.rows.length / ITEMS_PER_PAGE))}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={currentPage >= Math.ceil(tableData.rows.length / ITEMS_PER_PAGE)}
+                          onClick={() => setCurrentPage(prev => Math.min(Math.ceil(tableData.rows.length / ITEMS_PER_PAGE), prev + 1))}
+                        >
+                          Next
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -983,6 +1077,14 @@ export default function Home() {
         <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="rounded-xl border border-white/30 bg-white/10 px-6 py-4 text-center text-sm font-medium text-white shadow-2xl backdrop-blur">
             Drop a JSON / CSV / Excel file to import
+          </div>
+        </div>
+      )}
+      {isProcessing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-2xl border border-border">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm font-medium">Processing data...</p>
           </div>
         </div>
       )}
