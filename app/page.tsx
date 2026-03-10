@@ -2,7 +2,21 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import JsonViewer from "@/components/ui/json-viewer";
-import { AlertCircle, ChevronDown, Hash, Monitor, Moon, MousePointerClick, Palette, Scissors, Sun } from "lucide-react";
+import {
+  AlertCircle,
+  ChevronDown,
+  Hash,
+  History,
+  Monitor,
+  Moon,
+  MousePointerClick,
+  Palette,
+  Save,
+  Scissors,
+  Sun,
+  Trash2,
+  X
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +28,7 @@ import {
   DropdownMenuItem
 } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toast, Toaster } from "@/components/ui/sonner";
 
 let xlsxLoader: Promise<any> | null = null;
 let papaLoader: Promise<any> | null = null;
@@ -59,45 +74,36 @@ const loadPapa = () => {
   });
   return papaLoader;
 };
-const initialData = {
-  id: "0001",
-  type: "donut",
-  name: "Cake",
-  ppu: 0.55,
-  website: "https://example.com/donuts/cake",
-  primaryColor: "#FF5733",
-  secondaryColor: "rgb(255, 255, 255)",
-  createdAt: 1709251200000,
-  updatedAt: "2026-03-06T12:00:00.000Z",
-  isActive: true,
-  isGlutenFree: false,
-  discontinued: null,
-  description:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. In lobortis tellus eu justo hendrerit, a viverra turpis aliquam. Morbi sollicitudin accumsan lectus, eget sollicitudin magna tempus et. Cras fringilla risus sed libero consequat faucibus. Nulla facilisi. Quisque pretium, lorem id dignissim iaculis, est sem aliquet risus, sed suscipit elit sem sit amet dui. Vivamus tempor orci nec imperdiet molestie. Integer elit ex, elementum sed libero vitae, varius porta nisi. Pellentesque eget nibh justo. Morbi nec cursus metus, et faucibus nunc. Quisque vehicula sollicitudin ipsum, laoreet aliquam libero lobortis nec. Nulla facilisi.",
-  batters: {
-    batter: [
-      { id: "1001", type: "Regular" },
-      { id: "1002", type: "Chocolate" },
-      { id: "1003", type: "Blueberry" },
-      { id: "1004", type: "Devil's Food" }
-    ]
-  },
-  topping: [
-    { id: "5001", type: "None" },
-    { id: "5002", type: "Glazed" },
-    { id: "5005", type: "Sugar" },
-    { id: "5007", type: "Powdered Sugar" },
-    { id: "5006", type: "Chocolate with Sprinkles" },
-    { id: "5003", type: "Chocolate" },
-    { id: "5004", type: "Maple" }
-  ]
+const initialData: Record<string, unknown> = {};
+
+type SavedEntry = {
+  id: string;
+  name: string;
+  data: string;
+  settings: {
+    showLineNumbers: boolean;
+    showColorIndent: boolean;
+    collapseOnDoubleClick: boolean;
+    enableTruncation: boolean;
+    truncationLimit: number;
+    defaultExpanded: boolean | number;
+    viewMode: "tree" | "table";
+  };
+  createdAt: number;
+  updatedAt: number;
 };
 
 export default function Home() {
-  const [jsonText, setJsonText] = useState(() => JSON.stringify(initialData, null, 2));
+  const [jsonText, setJsonText] = useState("");
   const [parsedJson, setParsedJson] = useState<Record<string, any>>(initialData);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [history, setHistory] = useState<SavedEntry[]>([]);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [showColorIndent, setShowColorIndent] = useState(false);
@@ -136,6 +142,30 @@ export default function Home() {
     setTruncationLimit(value);
   };
   const CHUNK_SIZE_XLSX = 500;
+
+  const loadHistory = () => {
+    try {
+      const stored = localStorage.getItem("jsonViewerHistory");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) setHistory(parsed);
+      }
+    } catch (e) {
+      console.error("Failed to load history", e);
+    }
+  };
+
+  const persistHistory = (next: SavedEntry[]) => {
+    setHistory(next);
+    localStorage.setItem("jsonViewerHistory", JSON.stringify(next));
+  };
+
+  const makeId = () => {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return (crypto as any).randomUUID();
+    }
+    return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  };
 
   const likelyDateKey = (key?: string) =>
     key ? /(date|time|timestamp|created|updated|expires|at)$/i.test(key) : false;
@@ -194,9 +224,11 @@ export default function Home() {
         setParsedJson(parsed);
         setError(null);
         setNotice(null);
+        toast.success(`Imported ${file.name}`);
       } catch (err: any) {
         setError(err.message || "Invalid JSON file");
         setNotice(null);
+        toast.error("Invalid JSON file");
       }
     });
   };
@@ -208,7 +240,6 @@ export default function Home() {
       if (ext === "csv") {
         const Papa = await loadPapa();
         const text = await file.text();
-        setNotice("Loading CSV...");
         rows = await new Promise<any[]>((resolve, reject) => {
           const acc: any[] = [];
           Papa.parse(text, {
@@ -216,17 +247,13 @@ export default function Home() {
             skipEmptyLines: true,
             dynamicTyping: false,
             worker: true,
-            chunk: (result) => {
+            chunk: (result: { data: unknown[] }) => {
               acc.push(...result.data);
-              if (acc.length % 2000 === 0) {
-                setNotice(`Loading CSV... ${acc.length} rows`);
-              }
             },
             complete: () => {
-              setNotice(`Loaded ${acc.length} rows`);
               resolve(acc);
             },
-            error: (err) => reject(err)
+            error: (err: Error) => reject(err)
           });
         });
       } else if (ext === "xlsx") {
@@ -240,16 +267,15 @@ export default function Home() {
         const range = XLSX.utils.decode_range(ref);
         let header: any[] | null = null;
         rows = [];
-        setNotice("Loading Excel...");
         for (let r = range.s.r; r <= range.e.r; r += CHUNK_SIZE_XLSX) {
           const end = Math.min(r + CHUNK_SIZE_XLSX - 1, range.e.r);
           const chunkRange = { s: { r, c: range.s.c }, e: { r: end, c: range.e.c } };
-          const chunk = XLSX.utils.sheet_to_json<any[]>(sheet, {
+          const chunk = XLSX.utils.sheet_to_json(sheet, {
             range: chunkRange,
             header: 1,
             raw: true,
             defval: null
-          });
+          }) as any[][];
           if (!chunk.length) continue;
           if (!header) {
             header = chunk.shift() || [];
@@ -263,12 +289,8 @@ export default function Home() {
             return obj;
           });
           rows.push(...mapped);
-          if (rows.length % 2000 === 0) {
-            setNotice(`Loading Excel... ${rows.length} rows`);
-            await new Promise((res) => setTimeout(res, 0));
-          }
+          await new Promise((res) => setTimeout(res, 0));
         }
-        setNotice(`Loaded ${rows.length} rows`);
       } else {
         throw new Error("Unsupported file type");
       }
@@ -276,10 +298,83 @@ export default function Home() {
       setJsonText(pretty);
       setParsedJson(rows as any);
       setError(null);
-      if (!rows.length) setNotice("No rows found in file.");
+      if (!rows.length) {
+        setNotice(null);
+        toast.error("No rows found in file.");
+      } else {
+        setNotice(null);
+        toast.success(`Imported ${file.name} (${rows.length} rows)`);
+      }
     } catch (err: any) {
       setError(err.message || "Invalid file");
       setNotice(null);
+      toast.error(err.message || "Invalid file");
+    }
+  };
+
+  const currentSettings = () => ({
+    showLineNumbers,
+    showColorIndent,
+    collapseOnDoubleClick,
+    enableTruncation,
+    truncationLimit,
+    defaultExpanded,
+    viewMode
+  });
+
+  const saveCurrent = () => {
+    const name = saveName.trim() || "Untitled";
+    try {
+      const parsed = JSON.parse(jsonText || "{}");
+      const now = Date.now();
+      setParsedJson(parsed);
+      setError(null);
+      setNotice(null);
+      setHistory((prev) => {
+        const existingIndex = prev.findIndex((h) => h.name.toLowerCase() === name.toLowerCase());
+        const next = [...prev];
+        if (existingIndex >= 0) {
+          next[existingIndex] = {
+            ...next[existingIndex],
+            data: jsonText,
+            settings: currentSettings(),
+            updatedAt: now
+          };
+        } else {
+          next.unshift({
+            id: makeId(),
+            name,
+            data: jsonText,
+            settings: currentSettings(),
+            createdAt: now,
+            updatedAt: now
+          });
+        }
+        localStorage.setItem("jsonViewerHistory", JSON.stringify(next));
+        return next;
+      });
+      setShowSaveDialog(false);
+    } catch (err: any) {
+      setError(err.message || "Invalid JSON");
+    }
+  };
+
+  const loadEntry = (entry: SavedEntry) => {
+    setJsonText(entry.data);
+    setShowLineNumbers(entry.settings.showLineNumbers);
+    setShowColorIndent(entry.settings.showColorIndent);
+    setCollapseOnDoubleClick(entry.settings.collapseOnDoubleClick);
+    setEnableTruncation(entry.settings.enableTruncation);
+    setTruncationLimit(entry.settings.truncationLimit);
+    setDefaultExpanded(entry.settings.defaultExpanded);
+    setViewMode(entry.settings.viewMode);
+    try {
+      const parsed = JSON.parse(entry.data || "{}");
+      setParsedJson(parsed);
+      setError(null);
+      toast.success(`Loaded "${entry.name}"`);
+    } catch (err: any) {
+      setError("Saved JSON is invalid");
     }
   };
 
@@ -296,12 +391,26 @@ export default function Home() {
     return { cols, rows: parsedJson };
   }, [parsedJson]);
 
+  const handleDrop = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    const ext = file.name.toLowerCase().split(".").pop() || "";
+    if (ext === "json") {
+      handleJsonFile(file);
+    } else if (ext === "csv" || ext === "xlsx") {
+      await handleTableFile(file);
+    } else {
+      toast.error("Unsupported file type. Please drop JSON, CSV, or Excel (.xlsx).");
+    }
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = localStorage.getItem("theme");
     if (stored === "light" || stored === "dark" || stored === "system") {
       setTheme(stored);
     }
+    loadHistory();
     setMounted(true);
   }, []);
 
@@ -314,18 +423,34 @@ export default function Home() {
   }, [theme]);
 
   return (
-    <div className="flex h-screen w-full flex-col bg-zinc-50 dark:bg-black">
+    <div
+      className="relative flex h-screen w-full flex-col bg-zinc-50 dark:bg-black"
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        setIsDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setIsDragOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        handleDrop(e.dataTransfer.files);
+      }}
+    >
       <header className="flex h-14 items-center justify-between gap-3 border-b px-6 bg-white dark:bg-zinc-950 dark:border-zinc-800">
         <div className="flex items-center gap-2">
           <img src="/logo.png" alt="Logo" className="h-10 w-10 rounded" />
           <h1
             className="text-lg font-semibold text-foreground dark:text-zinc-100"
-            style={{ fontFamily: "var(--font-logo)" }}
+            style={{ fontFamily: "'Leckerli One', cursive" }}
           >
             JSON Viewer
           </h1>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger className="h-8 text-xs font-normal justify-between w-[140px]">
               <span className="inline-flex items-center gap-1.5">
@@ -354,6 +479,22 @@ export default function Home() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          <a
+            href="https://github.com/irshad1212/json_viewer"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 bg-white text-foreground transition hover:bg-muted dark:bg-zinc-900 dark:border-zinc-700"
+            aria-label="GitHub repository"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="currentColor"
+            >
+              <path d="M12 .5a12 12 0 0 0-3.79 23.4c.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.35-1.76-1.35-1.76-1.1-.75.08-.74.08-.74 1.22.09 1.86 1.25 1.86 1.25 1.08 1.85 2.83 1.32 3.52 1.01.11-.78.42-1.32.76-1.62-2.67-.3-5.47-1.34-5.47-5.97 0-1.32.47-2.4 1.24-3.25-.12-.3-.54-1.52.12-3.16 0 0 1.01-.32 3.3 1.24a11.5 11.5 0 0 1 6 0c2.28-1.56 3.29-1.24 3.29-1.24.66 1.64.24 2.86.12 3.16.77.85 1.23 1.93 1.23 3.25 0 4.64-2.8 5.66-5.48 5.96.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 12 .5Z" />
+            </svg>
+          </a>
         </div>
       </header>
 
@@ -375,53 +516,53 @@ export default function Home() {
                 )}
               </div>
             </div>
-            <div className="absolute top-2 right-4 z-10 flex items-center gap-2">
-              <input
-                ref={jsonFileInputRef}
-                type="file"
-                accept="application/json"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  handleJsonFile(file);
-                  e.target.value = "";
-                }}
-              />
-              <input
-                ref={tableFileInputRef}
-                type="file"
-                accept=".csv,.xlsx"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  handleTableFile(file);
-                  e.target.value = "";
-                }}
-              />
+            {!error && (
+              <div className="absolute top-2 right-4 z-10 flex items-center gap-2">
+                <input
+                  ref={jsonFileInputRef}
+                  type="file"
+                  accept="application/json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    handleJsonFile(file);
+                    e.target.value = "";
+                  }}
+                />
+                <input
+                  ref={tableFileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    handleTableFile(file);
+                    e.target.value = "";
+                  }}
+                />
 
-              <DropdownMenu>
-                <DropdownMenuTrigger className="h-7 px-3 text-xs font-normal border rounded-md">
-                  Import
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-[160px]">
-                  <DropdownMenuItem
-                    className="text-xs w-full"
-                    onClick={() => jsonFileInputRef.current?.click()}
-                  >
-                    From JSON file
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-xs w-full"
-                    onClick={() => tableFileInputRef.current?.click()}
-                  >
-                    From CSV/Excel (.csv, .xlsx)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="h-7 px-3 text-xs font-normal border rounded-md">
+                    Import
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-[160px]">
+                    <DropdownMenuItem
+                      className="text-xs w-full"
+                      onClick={() => jsonFileInputRef.current?.click()}
+                    >
+                      From JSON file
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-xs w-full"
+                      onClick={() => tableFileInputRef.current?.click()}
+                    >
+                      From CSV/Excel (.csv, .xlsx)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-              {!error && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -440,8 +581,30 @@ export default function Home() {
                 >
                   Beautify
                 </Button>
-              )}
-            </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
+                  disabled={!jsonText.trim()}
+                  onClick={() => {
+                    setSaveName("");
+                    setShowSaveDialog(true);
+                  }}
+                >
+                  <Save className="h-3.5 w-3.5 mr-1" />
+                  Save
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setShowHistoryDialog(true)}
+                >
+                  <History className="h-3.5 w-3.5 mr-1" />
+                  History
+                </Button>
+              </div>
+            )}
             <textarea
               value={jsonText}
               onChange={handleTextChange}
@@ -641,15 +804,15 @@ export default function Home() {
                                 );
                               } else if (val === null || val === undefined) {
                                 content = <span className="text-muted-foreground/70">—</span>;
-                            } else if (typeof val === "object") {
-                              content = <span className="font-mono text-xs text-muted-foreground">{JSON.stringify(val)}</span>;
-                            } else if (formatTimestamp(col, val)) {
-                              const formatted = formatTimestamp(col, val)!;
-                              content = (
-                                <div className="space-y-0.5">
-                                  <span className="text-sm text-foreground">{formatted}</span>
-                                  <div className="text-[11px] font-mono text-muted-foreground/70">{String(val)}</div>
-                                </div>
+                              } else if (typeof val === "object") {
+                                content = <span className="font-mono text-xs text-muted-foreground">{JSON.stringify(val)}</span>;
+                              } else if (formatTimestamp(col, val)) {
+                                const formatted = formatTimestamp(col, val)!;
+                                content = (
+                                  <div className="space-y-0.5">
+                                    <span className="text-sm text-foreground">{formatted}</span>
+                                    <div className="text-[11px] font-mono text-muted-foreground/70">{String(val)}</div>
+                                  </div>
                                 );
                               } else {
                                 content = String(val);
@@ -693,6 +856,137 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {showSaveDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-sm rounded-lg border border-border/60 bg-white p-4 shadow-xl dark:bg-zinc-950">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold">Save Snapshot</h3>
+              <button onClick={() => setShowSaveDialog(false)} aria-label="Close">
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+            <Label className="text-xs">Name</Label>
+            <Input
+              autoFocus
+              value={saveName}
+              onChange={(e) => setSaveName(e.target.value)}
+              placeholder="My data"
+              className="mt-1"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setShowSaveDialog(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={saveCurrent}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHistoryDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-2xl rounded-lg border border-border/60 bg-white p-4 shadow-xl dark:bg-zinc-950">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold">History</h3>
+              <button onClick={() => setShowHistoryDialog(false)} aria-label="Close">
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+            {history.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No saved items yet.</div>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto">
+                <Table className="min-w-full table-fixed">
+                  <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-20">ID</TableHead>
+                      <TableHead className="w-1/4">Name</TableHead>
+                      <TableHead className="w-1/4">Saved</TableHead>
+                      <TableHead className="w-1/4">Updated</TableHead>
+                      <TableHead className="w-28 text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {history.map((item) => (
+                      <TableRow
+                        key={item.id}
+                        className="hover:bg-muted/40 cursor-pointer"
+                        onClick={() => {
+                          loadEntry(item);
+                          setShowHistoryDialog(false);
+                        }}
+                      >
+                        <TableCell className="font-mono text-[11px] text-muted-foreground">{item.id.slice(0, 6)}</TableCell>
+                        <TableCell className="font-medium break-words">{item.name}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(item.createdAt).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(item.updatedAt).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-500 hover:text-red-500"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmDeleteId(item.id);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-sm rounded-lg border border-border/60 bg-white p-4 shadow-xl dark:bg-zinc-950">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold">Delete entry?</h3>
+              <button onClick={() => setConfirmDeleteId(null)} aria-label="Close">
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">This action cannot be undone.</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => {
+                  const next = history.filter((h) => h.id !== confirmDeleteId);
+                  persistHistory(next);
+                  setConfirmDeleteId(null);
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isDragOver && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="rounded-xl border border-white/30 bg-white/10 px-6 py-4 text-center text-sm font-medium text-white shadow-2xl backdrop-blur">
+            Drop a JSON / CSV / Excel file to import
+          </div>
+        </div>
+      )}
+      <Toaster position="bottom-center" />
     </div>
   );
 }

@@ -1,25 +1,6 @@
 import type { Metadata } from "next";
-import { Inter, Geist_Mono, Leckerli_One } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap"
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-mono"
-});
-
-const leckerli = Leckerli_One({
-  subsets: ["latin"],
-  weight: "400",
-  display: "swap",
-  variable: "--font-logo"
-});
 
 export const metadata: Metadata = {
   title: "JSON Viewer",
@@ -62,7 +43,7 @@ export default function RootLayout({
       </head>
       <body
         suppressHydrationWarning
-        className={`${inter.className} ${geistMono.variable} ${leckerli.variable} antialiased`}
+        className="antialiased"
       >
         <TooltipProvider>{children}</TooltipProvider>
       </body>
