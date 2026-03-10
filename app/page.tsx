@@ -10,17 +10,9 @@ import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuTrigger,
   DropdownMenuItem
 } from "@/components/ui/dropdown-menu";
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle
-} from "@/components/ui/resizable";
-
 const initialData = {
   id: "0001",
   type: "donut",
@@ -66,14 +58,8 @@ export default function Home() {
   const [enableTruncation, setEnableTruncation] = useState(false);
   const [truncationLimit, setTruncationLimit] = useState(3);
   const [defaultExpanded, setDefaultExpanded] = useState<boolean | number>(false);
-  const [theme, setTheme] = useState<"light" | "dark" | "system">(() => {
-    if (typeof window === "undefined") return "dark";
-    const stored = localStorage.getItem("theme");
-    if (stored === "light" || stored === "dark" || stored === "system") {
-      return stored;
-    }
-    return "dark";
-  });
+  const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
+  const [mounted, setMounted] = useState(false);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
@@ -100,6 +86,15 @@ export default function Home() {
   };
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("theme");
+    if (stored === "light" || stored === "dark" || stored === "system") {
+      setTheme(stored);
+    }
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     const root = document.documentElement;
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const isDark = theme === "dark" || (theme === "system" && prefersDark);
@@ -114,8 +109,8 @@ export default function Home() {
           <DropdownMenu>
             <DropdownMenuTrigger className="h-8 text-xs font-normal justify-between w-[140px]">
               <span className="inline-flex items-center gap-1.5">
-                {theme === "dark" ? <Moon className="w-3.5 h-3.5" /> : theme === "light" ? <Sun className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
-                {theme === "system" ? "System" : theme === "dark" ? "Dark" : "Light"}
+                {(mounted ? theme : "system") === "dark" ? <Moon className="w-3.5 h-3.5" /> : (mounted ? theme : "system") === "light" ? <Sun className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
+                {(mounted ? theme : "system") === "system" ? "System" : (mounted ? theme : "system") === "dark" ? "Dark" : "Light"}
               </span>
               <ChevronDown className="h-3.5 w-3.5 opacity-50" />
             </DropdownMenuTrigger>
@@ -143,9 +138,9 @@ export default function Home() {
       </header>
 
       <main className="flex flex-1 overflow-hidden min-h-0">
-        <ResizablePanelGroup className="flex-1 min-h-0" orientation="horizontal">
+        <div className="flex flex-1 min-h-0">
           {/* Left Pane - Input */}
-          <ResizablePanel defaultSize="50%" minSize={16.7} className="border-r dark:border-zinc-800 bg-white dark:bg-zinc-950 relative">
+          <div className="flex w-1/2 min-w-[25%] flex-col border-r dark:border-zinc-800 bg-white dark:bg-zinc-950 relative">
             <div className="flex h-12 items-center justify-between border-b px-4 dark:border-zinc-800">
               <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">JSON Input</h2>
               {error && (
@@ -187,12 +182,10 @@ export default function Home() {
               placeholder="Paste your JSON here..."
               spellCheck={false}
             />
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
+          </div>
 
           {/* Right Pane - Viewer */}
-          <ResizablePanel defaultSize="50%" minSize={50} className="bg-zinc-50 dark:bg-black">
+          <div className="flex w-1/2 min-w-[50%] flex-col bg-zinc-50 dark:bg-black">
           <div className="flex h-12 items-center justify-between border-b px-4 dark:border-zinc-800 bg-white dark:bg-zinc-950">
             <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Viewer Output</h2>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -348,8 +341,8 @@ export default function Home() {
               />
             )}
           </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </div>
+        </div>
       </main>
     </div>
   );
