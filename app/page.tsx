@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import JsonViewer from "@/components/ui/json-viewer";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ChevronDown,
+  FileCode2,
   Hash,
   History,
   Monitor,
@@ -16,6 +18,7 @@ import {
   Scissors,
   Sun,
   Trash2,
+  Wand2,
   X,
   Loader2,
   Wrench,
@@ -36,6 +39,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast, Toaster } from "@/components/ui/sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
+import { CopyButton } from "@/components/copy-button";
 
 let xlsxLoader: Promise<any> | null = null;
 let papaLoader: Promise<any> | null = null;
@@ -167,10 +171,21 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [filterQuery, setFilterQuery] = useState("");
   const [queryLang, setQueryLang] = useState<"jsonpath">("jsonpath");
+  const [showModelDialog, setShowModelDialog] = useState(false);
+  const [modelLanguage, setModelLanguage] = useState<"typescript" | "dart">("typescript");
+  const [modelTypeName, setModelTypeName] = useState("Root");
+  const [modelCode, setModelCode] = useState("");
+  const [modelGenerating, setModelGenerating] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [modelJustTypes, setModelJustTypes] = useState(false);
+  const [modelAllOptional, setModelAllOptional] = useState(false);
+  const [modelInferEnums, setModelInferEnums] = useState(true);
+  const [modelInferDateTimes, setModelInferDateTimes] = useState(true);
 
   const jsonFileInputRef = useRef<HTMLInputElement | null>(null);
   const tableFileInputRef = useRef<HTMLInputElement | null>(null);
   const monacoRef = useRef<any>(null);
+  const router = useRouter();
   const [showApiDialog, setShowApiDialog] = useState<null | "rest" | "graphql">(null);
   const [apiUrl, setApiUrl] = useState("");
   const [apiMethod, setApiMethod] = useState<"GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS">("GET");
@@ -674,6 +689,61 @@ export default function Home() {
     );
   };
 
+  const generateDataModel = async () => {
+    if (!jsonText.trim()) {
+      toast.error("Provide JSON to generate a data model.");
+      return;
+    }
+
+    try {
+      JSON.parse(jsonText);
+    } catch {
+      const message = "Fix JSON errors before generating.";
+      setModelError(message);
+      toast.error(message);
+      return;
+    }
+
+    setModelGenerating(true);
+    setModelError(null);
+
+    try {
+      const res = await fetch("/api/generate-model", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          json: jsonText,
+          language: modelLanguage,
+          typeName: modelTypeName.trim() || "Root",
+          options: {
+            justTypes: modelJustTypes,
+            allPropertiesOptional: modelAllOptional,
+            inferEnums: modelInferEnums,
+            inferDateTimes: modelInferDateTimes
+          }
+        })
+      });
+
+      const payload = await res.json();
+
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to generate model.");
+      }
+
+      const code: string =
+        payload?.code || (Array.isArray(payload?.lines) ? payload.lines.join("\n") : "");
+
+      setModelCode(code);
+      toast.success(`Generated ${modelLanguage === "dart" ? "Dart" : "TypeScript"} model`);
+    } catch (err: any) {
+      const message = err?.message || "Failed to generate model.";
+      setModelError(message);
+      toast.error(message);
+    } finally {
+      setModelGenerating(false);
+    }
+  };
+
   const loadFromRest = async () => {
     if (!apiUrl.trim()) {
       toast.error("Enter an endpoint URL.");
@@ -1050,12 +1120,12 @@ export default function Home() {
                     Tools
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[180px]">
-                    <DropdownMenuItem
-                      className="text-xs cursor-pointer"
-                      onClick={() => toast.info("Generate Data Model - Coming soon")}
-                    >
-                      Generate Data Model
-                    </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-xs cursor-pointer"
+                    onClick={() => router.push("/model")}
+                  >
+                    Generate Data Model
+                  </DropdownMenuItem>
                     <Link href="/compare" passHref>
                       <DropdownMenuItem className="text-xs cursor-pointer">
                         Compare JSON
@@ -1457,6 +1527,150 @@ export default function Home() {
         </div>
       </main>
 
+      <Dialog
+        open={showModelDialog}
+        onOpenChange={(open) => {
+          setShowModelDialog(open);
+          if (!open) setModelError(null);
+        }}
+      >
+        <DialogContent className="w-[94vw] sm:max-w-[1040px] lg:max-w-[1160px] border border-border/60 bg-white p-5 shadow-2xl dark:bg-zinc-950">
+          <DialogHeader className="mb-2">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <FileCode2 className="h-4 w-4" />
+              <p className="text-[11px] uppercase tracking-[0.08em]">Data Model</p>
+            </div>
+            <DialogTitle className="text-sm font-semibold">Generate typed models</DialogTitle>
+            <DialogDescription className="text-xs">
+              Uses the JSON from the editor to generate Dart or TypeScript models with the bundled quicktype reference.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Target language</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={modelLanguage === "typescript" ? "default" : "outline"}
+                    className="h-9 justify-center text-sm"
+                    onClick={() => {
+                      setModelLanguage("typescript");
+                      setModelError(null);
+                    }}
+                  >
+                    TypeScript
+                  </Button>
+                  <Button
+                    variant={modelLanguage === "dart" ? "default" : "outline"}
+                    className="h-9 justify-center text-sm"
+                    onClick={() => {
+                      setModelLanguage("dart");
+                      setModelError(null);
+                    }}
+                  >
+                    Dart
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Root type name</Label>
+                <Input
+                  value={modelTypeName}
+                  onChange={(e) => setModelTypeName(e.target.value)}
+                  placeholder="Root"
+                  className="h-10"
+                />
+              </div>
+
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2">
+                <p className="text-xs font-semibold">Options</p>
+                <div className="space-y-2 text-sm">
+                  <label className="flex items-center gap-2">
+                    <Checkbox
+                      checked={modelJustTypes}
+                      onCheckedChange={(checked) => setModelJustTypes(Boolean(checked))}
+                      className="h-4 w-4"
+                    />
+                    <span>Types only (omit helper methods)</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <Checkbox
+                      checked={modelAllOptional}
+                      onCheckedChange={(checked) => setModelAllOptional(Boolean(checked))}
+                      className="h-4 w-4"
+                    />
+                    <span>Make all properties optional</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <Checkbox
+                      checked={modelInferEnums}
+                      onCheckedChange={(checked) => setModelInferEnums(Boolean(checked))}
+                      className="h-4 w-4"
+                    />
+                    <span>Infer enums from repeated strings</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <Checkbox
+                      checked={modelInferDateTimes}
+                      onCheckedChange={(checked) => setModelInferDateTimes(Boolean(checked))}
+                      className="h-4 w-4"
+                    />
+                    <span>Detect ISO date/time strings</span>
+                  </label>
+                </div>
+              </div>
+
+              {modelError && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-100">
+                  {modelError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setShowModelDialog(false)}>
+                  Close
+                </Button>
+                <Button size="sm" onClick={generateDataModel} disabled={modelGenerating}>
+                  {modelGenerating ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="mr-2 h-4 w-4" />
+                  )}
+                  Generate
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border/60 bg-white dark:bg-zinc-950 flex flex-col min-h-[360px]">
+              <div className="flex items-center justify-between border-b border-border/60 px-4 py-3 bg-muted/40 dark:bg-zinc-900/50">
+                <div className="flex flex-col">
+                  <span className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Preview</span>
+                  <span className="text-sm font-semibold">{modelLanguage === "dart" ? "Dart" : "TypeScript"} output</span>
+                </div>
+                {modelCode && <CopyButton value={modelCode} className="h-8 w-8" />}
+              </div>
+              <div className="flex-1 overflow-auto px-4 py-3 bg-zinc-50 dark:bg-zinc-900 rounded-b-lg">
+                {modelGenerating ? (
+                  <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating...
+                  </div>
+                ) : modelCode ? (
+                  <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-5 text-foreground">
+                    {modelCode}
+                  </pre>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground text-center px-4">
+                    Run generate to see code. Uses the reference quicktype logic locally.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={showSaveDialog}
         onOpenChange={(open) => {

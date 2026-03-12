@@ -29,10 +29,13 @@ DropdownMenuTrigger.displayName = "DropdownMenuTrigger";
 
 const DropdownMenuContent = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<typeof Menu.Popup> & { sideOffset?: number }
->(({ className, sideOffset = 4, ...props }, ref) => {
+  React.ComponentProps<typeof Menu.Popup> & {
+    sideOffset?: number;
+    portalContainer?: React.ComponentProps<typeof Menu.Portal>["container"];
+  }
+>(({ className, sideOffset = 4, portalContainer, ...props }, ref) => {
   return (
-    <Menu.Portal>
+    <Menu.Portal container={portalContainer}>
       <Menu.Positioner sideOffset={sideOffset} className="z-50">
         <Menu.Popup
           ref={ref}
