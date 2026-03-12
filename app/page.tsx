@@ -27,13 +27,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
-      DropdownMenuContent,
-      DropdownMenuTrigger,
-      DropdownMenuItem
-    } from "@/components/ui/dropdown-menu";
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuItem
+} from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast, Toaster } from "@/components/ui/sonner";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
 
 let xlsxLoader: Promise<any> | null = null;
 let papaLoader: Promise<any> | null = null;
@@ -1304,56 +1305,65 @@ export default function Home() {
         </div>
       </main>
 
-      {showSaveDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-sm rounded-lg border border-border/60 bg-white p-4 shadow-xl dark:bg-zinc-950">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold">Save Snapshot</h3>
-              <button onClick={() => setShowSaveDialog(false)} aria-label="Close">
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
-            <Label className="text-xs">Name</Label>
+      <Dialog
+        open={showSaveDialog}
+        onOpenChange={(open) => {
+          if (!open) setShowSaveDialog(false);
+        }}
+      >
+        <DialogContent className="w-[min(96vw,420px)] max-w-sm border border-border/60 bg-white p-5 sm:p-6 shadow-xl dark:bg-zinc-950">
+          <DialogHeader className="mb-3">
+            <DialogTitle className="text-base font-semibold">Save Snapshot</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-2.5">
+            <Label className="text-sm font-medium text-foreground pb-1 block">Name</Label>
             <Input
               autoFocus
               value={saveName}
               onChange={(e) => setSaveName(e.target.value)}
               placeholder="My data"
-              className="mt-1"
             />
-            <div className="mt-4 flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setShowSaveDialog(false)}>
-                Cancel
-              </Button>
-              <Button size="sm" onClick={saveCurrent}>
-                Save
-              </Button>
-            </div>
           </div>
-        </div>
-      )}
 
-      {showApiDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-4xl rounded-xl border border-border/60 bg-white p-5 shadow-2xl dark:bg-zinc-950">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Request Builder</p>
-                <h3 className="text-sm font-semibold">{showApiDialog === "rest" ? "Load from REST" : "Load from GraphQL"}</h3>
-              </div>
-              <button
-                onClick={() => {
-                  setShowApiDialog(null);
-                  resetApiForm();
-                }}
-                aria-label="Close"
-                className="rounded-md p-1 hover:bg-muted/60"
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
+          <div className="mt-6 flex justify-end items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => setShowSaveDialog(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={saveCurrent}>
+              Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-            <div className="space-y-4">
+      <Dialog
+        open={Boolean(showApiDialog)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowApiDialog(null);
+            resetApiForm();
+          }
+        }}
+      >
+        <DialogContent className="w-[94vw] sm:max-w-[980px] md:max-w-[1040px] lg:max-w-[1080px] border border-border/60 bg-white p-5 shadow-2xl dark:bg-zinc-950">
+          <DialogHeader className="mb-1">
+            <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Request Builder</p>
+            <DialogTitle className="text-sm font-semibold">
+              {showApiDialog === "rest" ? "Load from REST" : "Load from GraphQL"}
+            </DialogTitle>
+            <DialogDescription className="text-[12px]">
+              Compose a request; responses are parsed into the JSON viewer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogClose
+            className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-muted/60"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </DialogClose>
+
+          <div className="space-y-4">
               <div className="grid gap-3 md:grid-cols-[160px_1fr] items-start">
                 <div className="flex flex-col gap-1.5">
                   <Label className="text-xs">Method</Label>
@@ -1676,107 +1686,105 @@ export default function Home() {
                 </Button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
-      {showHistoryDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-2xl rounded-lg border border-border/60 bg-white p-4 shadow-xl dark:bg-zinc-950">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold">History</h3>
-              <button
-                onClick={() => {
-                  setShowHistoryDialog(false);
-                  setConfirmDeleteId(null);
-                }}
-                aria-label="Close"
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
-            {history.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No saved items yet.</div>
-            ) : (
-              <div className="max-h-[60vh] overflow-auto">
-                <Table className="min-w-full table-fixed">
-                  <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-20">ID</TableHead>
-                      <TableHead className="w-1/4">Name</TableHead>
-                      <TableHead className="w-1/4">Saved</TableHead>
-                      <TableHead className="w-1/4">Updated</TableHead>
-                      <TableHead className="w-28 text-right">Actions</TableHead>
+      <Dialog
+        open={showHistoryDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowHistoryDialog(false);
+            setConfirmDeleteId(null);
+          }
+        }}
+      >
+        <DialogContent className="w-[94vw] sm:max-w-[860px] md:max-w-[940px] lg:max-w-[980px] min-w-[660px] border border-border/60 bg-white p-4 shadow-2xl dark:bg-zinc-950">
+          <DialogHeader className="mb-2">
+            <DialogTitle className="text-sm font-semibold">History</DialogTitle>
+            <DialogDescription className="text-xs">
+              Load a saved snapshot or delete entries stored locally in your browser.
+            </DialogDescription>
+          </DialogHeader>
+          {history.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No saved items yet.</div>
+          ) : (
+            <div className="max-h-[60vh] overflow-auto">
+              <Table className="min-w-full table-fixed">
+                <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-20">ID</TableHead>
+                    <TableHead className="w-1/4">Name</TableHead>
+                    <TableHead className="w-1/4">Saved</TableHead>
+                    <TableHead className="w-1/4">Updated</TableHead>
+                    <TableHead className="w-28 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {history.map((item) => (
+                    <TableRow
+                      key={item.id}
+                      className="hover:bg-muted/40 cursor-pointer"
+                      onClick={() => {
+                        loadEntry(item);
+                        setShowHistoryDialog(false);
+                      }}
+                    >
+                      <TableCell className="font-mono text-[11px] text-muted-foreground">{item.id.slice(0, 6)}</TableCell>
+                      <TableCell className="font-medium break-words">{item.name}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(item.createdAt).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(item.updatedAt).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-500 hover:text-red-500"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDeleteId(item.id);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {history.map((item) => (
-                      <TableRow
-                        key={item.id}
-                        className="hover:bg-muted/40 cursor-pointer"
-                        onClick={() => {
-                          loadEntry(item);
-                          setShowHistoryDialog(false);
-                        }}
-                      >
-                        <TableCell className="font-mono text-[11px] text-muted-foreground">{item.id.slice(0, 6)}</TableCell>
-                        <TableCell className="font-medium break-words">{item.name}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(item.createdAt).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(item.updatedAt).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-500 hover:text-red-500"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setConfirmDeleteId(item.id);
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          {confirmDeleteId && (
+            <div className="mt-4 rounded-lg border border-border/60 bg-muted/30 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold">Delete entry?</h3>
+                <button onClick={() => setConfirmDeleteId(null)} aria-label="Close">
+                  <X className="h-4 w-4 text-muted-foreground" />
+                </button>
               </div>
-            )}
-            {confirmDeleteId && (
-              <div className="mt-4 rounded-lg border border-border/60 bg-muted/30 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold">Delete entry?</h3>
-                  <button onClick={() => setConfirmDeleteId(null)} aria-label="Close">
-                    <X className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                </div>
-                <p className="text-sm text-muted-foreground mb-3">This action cannot be undone.</p>
-                <div className="flex justify-end gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => {
-                      const next = history.filter((h) => h.id !== confirmDeleteId);
-                      persistHistory(next);
-                      setConfirmDeleteId(null);
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
+              <p className="text-sm text-muted-foreground mb-3">This action cannot be undone.</p>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => {
+                    const next = history.filter((h) => h.id !== confirmDeleteId);
+                    persistHistory(next);
+                    setConfirmDeleteId(null);
+                  }}
+                >
+                  Delete
+                </Button>
               </div>
-            )}
-          </div>
-        </div>
-      )
-      }
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       {
         isDragOver && (
           <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60">
