@@ -80,7 +80,7 @@ export function Toaster({ position = "top-right" }: ToasterProps) {
             : "bottom-4 left-4";
 
   return createPortal(
-    <div className={cn("fixed z-50 flex flex-col gap-2 pointer-events-none", posClass)}>
+    <div className={cn("fixed z-50 flex flex-col gap-2 pointer-events-none items-center", posClass)}>
       {toasts.map((t) => (
         <div
           key={t.id}

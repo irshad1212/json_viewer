@@ -130,6 +130,8 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 100;
   const [isProcessing, setIsProcessing] = useState(false);
+  const [filterQuery, setFilterQuery] = useState("");
+  const [queryLang, setQueryLang] = useState<"jsonpath">("jsonpath");
 
   const jsonFileInputRef = useRef<HTMLInputElement | null>(null);
   const tableFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -430,10 +432,78 @@ export default function Home() {
     }
   };
 
-  const tableData = useMemo(() => {
-    if (!Array.isArray(parsedJson)) return null;
+  const applyQuery = (data: any, query: string, lang: "jsonpath") => {
+    if (!query.trim()) return data;
+    // Simple filter: $[?(@.field == 'value')] or [?field==123]
+    const filterRegex = /\[\?\(?@?\.?([\w$]+)\s*==\s*(['"]?)([^'"\])]+)\2\)?\]/;
 
-    const sampleRows = parsedJson.length > 500 ? parsedJson.slice(0, 500) : parsedJson;
+    const tokenize = (path: string) => {
+      const clean = path.replace(/^\$?\.?/, "");
+      const tokens: string[] = [];
+      const re = /(\['[^']+'\])|(\["[^"]+"\])|(\[\*\])|(\[\d+\])|(\*)|([^.\[\]]+)/g;
+      let m;
+      while ((m = re.exec(clean)) !== null) {
+        const [full] = m;
+        if (full === "[*]" || full === "*") tokens.push("*");
+        else if (full.startsWith("['") || full.startsWith('["')) tokens.push(full.slice(2, -2));
+        else if (full.startsWith("[")) tokens.push(full.slice(1, -1));
+        else tokens.push(full);
+      }
+      return tokens;
+    };
+
+    const walk = (target: any, tokens: string[]): any =>
+      tokens.reduce((acc, t) => {
+        if (acc === undefined || acc === null) return undefined;
+        if (t === "*") {
+          if (Array.isArray(acc)) return acc.flat();
+          if (acc && typeof acc === "object") return Object.values(acc);
+          return undefined;
+        }
+        if (Array.isArray(acc)) {
+          const idx = Number(t);
+          if (Number.isInteger(idx)) return acc[idx];
+          return acc.map((item: any) => item?.[t]).filter((item: any) => item !== undefined);
+        }
+        return (acc as any)?.[t];
+      }, target);
+
+    // Filters
+    if (filterRegex.test(query)) {
+      const match = query.match(filterRegex)!;
+      const [, key, , rawVal] = match;
+      const val = isNaN(Number(rawVal)) ? rawVal : Number(rawVal);
+      const matchIndex = match.index || 0;
+      // path before filter to reach target array
+      const prefix = query.slice(0, matchIndex).replace(/^\$?\.?/, "");
+      let target: any = prefix ? walk(data, tokenize(prefix)) : data;
+      if (Array.isArray(target)) {
+        // flatten one level if wildcard produced nested arrays
+        target = target.flat ? target.flat() : target;
+        data = target.filter((item: any) => item?.[key] == val);
+      } else {
+        data = [];
+      }
+      query = query.slice(matchIndex + match[0].length);
+      return walk(data, tokenize(query));
+      return walk(data, tokenize(query));
+    }
+
+
+
+    // JSONPath fallback: treat as dot/bracket path (covers default JSONPath)
+    return walk(data, tokenize(query));
+  };
+
+  const displayJson = useMemo(() => {
+    const res = applyQuery(parsedJson, filterQuery, queryLang);
+    return res === undefined ? parsedJson : res;
+  }, [parsedJson, filterQuery, queryLang]);
+
+  const tableData = useMemo(() => {
+    if (!Array.isArray(displayJson)) return null;
+
+    const sampleRows = displayJson.length > 500 ? displayJson.slice(0, 500) : displayJson;
 
     const cols = Array.from(
       sampleRows.reduce<Set<string>>((set, row) => {
@@ -443,9 +513,8 @@ export default function Home() {
         return set;
       }, new Set<string>())
     );
-    return { cols, rows: parsedJson };
-  }, [parsedJson]);
-
+    return { cols, rows: displayJson };
+  }, [displayJson]);
   const handleDrop = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const file = files[0];
@@ -1287,7 +1356,7 @@ export default function Home() {
               ) : (
                 <JsonViewer
                   key={`${String(defaultExpanded)}-${viewMode}`}
-                  data={parsedJson}
+                  data={displayJson}
                   showLineNumbers={showLineNumbers}
                   showColorIndent={showColorIndent}
                   collapseOn={collapseOnDoubleClick ? "doubleClick" : "click"}
@@ -1300,6 +1369,50 @@ export default function Home() {
                   title="Feature Showcase"
                 />
               )}
+            </div>
+            <div className="border-t px-4 py-3 dark:border-zinc-800 bg-white/80 dark:bg-black/60 backdrop-blur-sm space-y-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                <div className="flex flex-1 gap-2">
+                  <Input
+                    id="json-query"
+                    value={filterQuery}
+                    onChange={(e) => setFilterQuery(e.target.value)}
+                    placeholder="JSON Query"
+                    className="h-9 text-sm"
+                  />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="h-9 px-3 text-xs font-medium">
+                      {queryLang === "jsonpath" ? "JSONPath" : "Unsupported"}
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-40">
+                      <DropdownMenuItem onClick={() => setQueryLang("jsonpath")}>JSONPath</DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="opacity-50"
+                        onClick={() => toast.error("JMESPath is unavailable.")}
+                      >
+                        JMESPath
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="opacity-50"
+                        onClick={() => toast.error("jq is unavailable.")}
+                      >
+                        jq (basic)
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    onClick={() => setFilterQuery("")}
+                    disabled={!filterQuery}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
