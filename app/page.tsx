@@ -27,12 +27,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-  DropdownMenuItem
-} from "@/components/ui/dropdown-menu";
+      DropdownMenuContent,
+      DropdownMenuTrigger,
+      DropdownMenuItem
+    } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast, Toaster } from "@/components/ui/sonner";
+import { Checkbox } from "@/components/ui/checkbox";
 
 let xlsxLoader: Promise<any> | null = null;
 let papaLoader: Promise<any> | null = null;
@@ -97,6 +98,13 @@ type SavedEntry = {
   updatedAt: number;
 };
 
+type KeyValueRow = {
+  id: string;
+  key: string;
+  value: string;
+  enabled: boolean;
+};
+
 export default function Home() {
   const [jsonText, setJsonText] = useState("");
   const [parsedJson, setParsedJson] = useState<Record<string, any>>(initialData);
@@ -124,6 +132,27 @@ export default function Home() {
 
   const jsonFileInputRef = useRef<HTMLInputElement | null>(null);
   const tableFileInputRef = useRef<HTMLInputElement | null>(null);
+  const monacoRef = useRef<any>(null);
+  const [showApiDialog, setShowApiDialog] = useState<null | "rest" | "graphql">(null);
+  const [apiUrl, setApiUrl] = useState("");
+  const [apiMethod, setApiMethod] = useState<"GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS">("GET");
+  const [restParams, setRestParams] = useState<KeyValueRow[]>([
+    { id: "param-1", key: "", value: "", enabled: true }
+  ]);
+  const [restHeaders, setRestHeaders] = useState<KeyValueRow[]>([
+    { id: "header-1", key: "Accept", value: "application/json", enabled: true }
+  ]);
+  const [restAuthBearer, setRestAuthBearer] = useState("");
+  const [restBodyMode, setRestBodyMode] = useState<"none" | "json" | "raw" | "form">("json");
+  const [restContentType, setRestContentType] = useState<"application/json" | "text/plain" | "application/x-www-form-urlencoded">(
+    "application/json"
+  );
+  const [restBody, setRestBody] = useState("");
+  const [gqlQuery, setGqlQuery] = useState("");
+  const [gqlVariables, setGqlVariables] = useState("");
+  const [gqlHeaders, setGqlHeaders] = useState<KeyValueRow[]>([
+    { id: "gql-header-1", key: "Content-Type", value: "application/json", enabled: true }
+  ]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
@@ -429,23 +458,294 @@ export default function Home() {
     }
   };
 
+  const ensureRow = (rows: KeyValueRow[], setRows: (next: KeyValueRow[]) => void) => {
+    if (rows.length === 0) {
+      setRows([{ id: makeId(), key: "", value: "", enabled: true }]);
+    }
+  };
+
+  const upsertRow = (
+    rows: KeyValueRow[],
+    setRows: (next: KeyValueRow[]) => void,
+    id: string,
+    field: "key" | "value" | "enabled",
+    value: string | boolean
+  ) => {
+    setRows(rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+  };
+
+  const addRow = (rows: KeyValueRow[], setRows: (next: KeyValueRow[]) => void) => {
+    setRows([...rows, { id: makeId(), key: "", value: "", enabled: true }]);
+  };
+
+  const removeRow = (rows: KeyValueRow[], setRows: (next: KeyValueRow[]) => void, id: string) => {
+    if (rows.length === 1) {
+      setRows([{ id: makeId(), key: "", value: "", enabled: true }]);
+      return;
+    }
+    setRows(rows.filter((r) => r.id !== id));
+  };
+
+  const kvToObject = (rows: KeyValueRow[]) =>
+    rows.reduce<Record<string, string>>((acc, { key, value, enabled }) => {
+      if (!enabled) return acc;
+      const trimmedKey = key.trim();
+      if (trimmedKey) acc[trimmedKey] = value;
+      return acc;
+    }, {});
+
+  const buildUrlWithParams = (url: string, params: KeyValueRow[]) => {
+    if (!params.some((p) => p.enabled && p.key.trim())) return url;
+    try {
+      const u = new URL(url, typeof window !== "undefined" ? window.location.origin : undefined);
+      params.forEach(({ key, value, enabled }) => {
+        if (enabled && key.trim()) u.searchParams.append(key.trim(), value);
+      });
+      return u.toString();
+    } catch {
+      const search = params
+        .filter((p) => p.enabled && p.key.trim())
+        .map((p) => `${encodeURIComponent(p.key.trim())}=${encodeURIComponent(p.value)}`)
+        .join("&");
+      if (!search) return url;
+      return url.includes("?") ? `${url}&${search}` : `${url}?${search}`;
+    }
+  };
+
+  const resetApiForm = () => {
+    setApiUrl("");
+    setApiMethod("GET");
+    setRestParams([{ id: makeId(), key: "", value: "", enabled: true }]);
+    setRestHeaders([{ id: makeId(), key: "Accept", value: "application/json", enabled: true }]);
+    setRestAuthBearer("");
+    setRestBodyMode("json");
+    setRestContentType("application/json");
+    setRestBody("");
+    setGqlQuery("");
+    setGqlVariables("");
+    setGqlHeaders([{ id: makeId(), key: "Content-Type", value: "application/json", enabled: true }]);
+  };
+
+  const OptionSelect = ({
+    value,
+    options,
+    onChange,
+    className,
+    placeholder,
+    widthClass = "w-full"
+  }: {
+    value: string;
+    options: { value: string; label: string }[];
+    onChange: (v: string) => void;
+    className?: string;
+    placeholder?: string;
+    widthClass?: string;
+  }) => {
+    const active = options.find((o) => o.value === value);
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className={cn(
+            "h-10 px-3 inline-flex items-center justify-between rounded-md border border-border bg-transparent text-sm font-normal",
+            widthClass,
+            className
+          )}
+        >
+          <span className="truncate">{active?.label || placeholder || "Select"}</span>
+          <ChevronDown className="h-4 w-4 opacity-60" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-[220px]">
+          {options.map((opt) => (
+            <DropdownMenuItem
+              key={opt.value}
+              className={cn("text-sm", value === opt.value && "bg-muted")}
+              onClick={() => onChange(opt.value)}
+            >
+              {opt.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
+
+  const loadFromRest = async () => {
+    if (!apiUrl.trim()) {
+      toast.error("Enter an endpoint URL.");
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const preparedUrl = buildUrlWithParams(apiUrl, restParams);
+      const headers = kvToObject(restHeaders);
+      if (restAuthBearer.trim()) {
+        headers.Authorization = `Bearer ${restAuthBearer.trim()}`;
+      }
+      const bodyAllowed = apiMethod !== "GET" && apiMethod !== "HEAD";
+      if (bodyAllowed && restBodyMode !== "none") {
+        headers["Content-Type"] = restContentType;
+      }
+
+      let body: BodyInit | undefined;
+      if (bodyAllowed) {
+        if (restBodyMode === "json" && restBody.trim()) {
+          body = JSON.stringify(JSON.parse(restBody));
+        } else if (restBodyMode === "form" && restBody.trim()) {
+          const form = new URLSearchParams();
+          restBody
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter(Boolean)
+            .forEach((line) => {
+              const idx = line.indexOf("=");
+              if (idx > -1) {
+                form.append(line.slice(0, idx), line.slice(idx + 1));
+              }
+            });
+          body = form;
+        } else if (restBodyMode === "raw") {
+          body = restBody;
+        }
+      }
+
+      const started = performance.now();
+      const res = await fetch(preparedUrl, {
+        method: apiMethod,
+        headers,
+        body
+      });
+      const elapsed = Math.round(performance.now() - started);
+
+      const text = await res.text();
+      let parsed: any;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = text;
+      }
+      const pretty = JSON.stringify(parsed, null, 2);
+      setJsonText(pretty);
+      setParsedJson(parsed);
+      setError(null);
+      setNotice(`REST ${res.status} • ${elapsed} ms • ${preparedUrl}`);
+      if (res.ok) {
+        toast.success(`Loaded REST (${res.status})`);
+      } else {
+        toast.error(`Loaded REST (${res.status})`);
+      }
+      setShowApiDialog(null);
+      resetApiForm();
+    } catch (err: any) {
+      const message = err?.message || "Failed to load REST data";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const loadFromGraphQL = async () => {
+    if (!apiUrl.trim() || !gqlQuery.trim()) {
+      toast.error("Endpoint and query are required.");
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const headers = kvToObject(gqlHeaders);
+      if (restAuthBearer.trim()) {
+        headers.Authorization = `Bearer ${restAuthBearer.trim()}`;
+      }
+      const variables = gqlVariables.trim() ? JSON.parse(gqlVariables) : undefined;
+      const started = performance.now();
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...headers
+        },
+        body: JSON.stringify({ query: gqlQuery, variables })
+      });
+      const elapsed = Math.round(performance.now() - started);
+      const json = await res.json();
+      if (json.errors?.length) {
+        throw new Error(json.errors[0].message || "GraphQL error");
+      }
+      if (json.data == null) {
+        throw new Error("No data returned");
+      }
+      const pretty = JSON.stringify(json.data, null, 2);
+      setJsonText(pretty);
+      setParsedJson(json.data);
+      setError(null);
+      setNotice(`GraphQL ${res.status} • ${elapsed} ms • ${apiUrl}`);
+      if (res.ok) {
+        toast.success(`Loaded GraphQL (${res.status})`);
+      } else {
+        toast.error(`Loaded GraphQL (${res.status})`);
+      }
+      setShowApiDialog(null);
+      resetApiForm();
+    } catch (err: any) {
+      const message = err?.message || "Failed to load GraphQL data";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = localStorage.getItem("theme");
     if (stored === "light" || stored === "dark" || stored === "system") {
       setTheme(stored);
     }
+    const savedJson = localStorage.getItem("jsonViewerText");
+    if (savedJson) {
+      setJsonText(savedJson);
+      try {
+        const parsed = JSON.parse(savedJson);
+        setParsedJson(parsed);
+        setError(null);
+      } catch (err: any) {
+        setError(err.message || "Invalid JSON");
+      }
+    }
     loadHistory();
     setMounted(true);
   }, []);
 
   useEffect(() => {
+    if (!mounted) return;
+    const timer = setTimeout(() => {
+      localStorage.setItem("jsonViewerText", jsonText);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [jsonText, mounted]);
+
+  const isDark = useMemo(() => {
+    if (!mounted) return true;
+    if (theme === "system") {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+    return theme === "dark";
+  }, [theme, mounted]);
+
+  const editorTheme = isDark ? "app-dark" : "app-light";
+
+  useEffect(() => {
+    if (monacoRef.current) {
+      monacoRef.current.editor.setTheme(editorTheme);
+    }
+  }, [editorTheme]);
+
+  useEffect(() => {
     const root = document.documentElement;
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const isDark = theme === "dark" || (theme === "system" && prefersDark);
     root.classList.toggle("dark", isDark);
-    localStorage.setItem("theme", theme);
-  }, [theme]);
+    if (mounted) {
+      localStorage.setItem("theme", theme);
+    }
+  }, [theme, isDark, mounted]);
 
   return (
     <div
@@ -562,7 +862,7 @@ export default function Home() {
                   <DropdownMenuTrigger className="h-7 px-3 text-xs font-normal border rounded-md">
                     Import
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-[160px]">
+                  <DropdownMenuContent className="w-[190px]">
                     <DropdownMenuItem
                       className="text-xs w-full"
                       onClick={() => jsonFileInputRef.current?.click()}
@@ -574,6 +874,26 @@ export default function Home() {
                       onClick={() => tableFileInputRef.current?.click()}
                     >
                       From CSV/Excel (.csv, .xlsx)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-xs w-full"
+                      onClick={() => {
+                        resetApiForm();
+                        setShowApiDialog("rest");
+                        setApiMethod("GET");
+                      }}
+                    >
+                      Load from REST
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-xs w-full"
+                      onClick={() => {
+                        resetApiForm();
+                        setShowApiDialog("graphql");
+                        setApiMethod("POST");
+                      }}
+                    >
+                      Load from GraphQL
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -655,8 +975,29 @@ export default function Home() {
                 <Editor
                   height="100%"
                   language="json"
-                  theme="vs-dark"
+                  theme={editorTheme}
                   value={jsonText}
+                  beforeMount={(monaco) => {
+                    monacoRef.current = monaco;
+                    monaco.editor.defineTheme("app-dark", {
+                      base: "vs-dark",
+                      inherit: true,
+                      rules: [],
+                      colors: {
+                        "editor.background": "#09090b",
+                        "editorGutter.background": "#09090b",
+                      }
+                    });
+                    monaco.editor.defineTheme("app-light", {
+                      base: "vs",
+                      inherit: true,
+                      rules: [],
+                      colors: {
+                        "editor.background": "#ffffff",
+                        "editorGutter.background": "#ffffff",
+                      }
+                    });
+                  }}
                   onChange={(val) => {
                     const newText = val || "";
                     setJsonText(newText);
@@ -992,12 +1333,365 @@ export default function Home() {
         </div>
       )}
 
+      {showApiDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-4xl rounded-xl border border-border/60 bg-white p-5 shadow-2xl dark:bg-zinc-950">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Request Builder</p>
+                <h3 className="text-sm font-semibold">{showApiDialog === "rest" ? "Load from REST" : "Load from GraphQL"}</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowApiDialog(null);
+                  resetApiForm();
+                }}
+                aria-label="Close"
+                className="rounded-md p-1 hover:bg-muted/60"
+              >
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-[160px_1fr] items-start">
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs">Method</Label>
+                  <OptionSelect
+                    value={apiMethod}
+                    onChange={(v) =>
+                      setApiMethod(v as "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS")
+                    }
+                    options={["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((m) => ({
+                      value: m,
+                      label: m
+                    }))}
+                    widthClass="w-full"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">Endpoint URL</Label>
+                  <Input
+                    autoFocus
+                    placeholder="https://api.example.com/v1/resource"
+                    value={apiUrl}
+                    onChange={(e) => setApiUrl(e.target.value)}
+                    className="w-full h-10"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">Query params and headers are added automatically.</p>
+                </div>
+              </div>
+
+              {showApiDialog === "rest" && (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="text-xs font-semibold">Query Params</p>
+                        <p className="text-[11px] text-muted-foreground">Appends to the URL</p>
+                      </div>
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => addRow(restParams, setRestParams)}>
+                        + Param
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {restParams.map((row) => (
+                        <div key={row.id} className="grid grid-cols-[auto_1fr_1fr_auto] gap-2 items-center">
+                          <Checkbox
+                            checked={row.enabled}
+                            onCheckedChange={(checked) =>
+                              upsertRow(restParams, setRestParams, row.id, "enabled", Boolean(checked))
+                            }
+                            className="h-4 w-4"
+                          />
+                          <Input
+                            placeholder="key"
+                            value={row.key}
+                            onChange={(e) => upsertRow(restParams, setRestParams, row.id, "key", e.target.value)}
+                            onBlur={() => ensureRow(restParams, setRestParams)}
+                            className="h-10"
+                          />
+                          <Input
+                            placeholder="value"
+                            value={row.value}
+                            onChange={(e) => upsertRow(restParams, setRestParams, row.id, "value", e.target.value)}
+                            onBlur={() => ensureRow(restParams, setRestParams)}
+                            className="h-10"
+                          />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={() => removeRow(restParams, setRestParams, row.id)}
+                            aria-label="Remove param"
+                          >
+                            <X className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold">Authentication</p>
+                        <span className="text-[11px] text-muted-foreground">Bearer</span>
+                      </div>
+                      <Input
+                        placeholder="Bearer token (optional)"
+                        value={restAuthBearer}
+                        onChange={(e) => setRestAuthBearer(e.target.value)}
+                        className="h-10"
+                      />
+                    </div>
+
+                    <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold">Headers</p>
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => addRow(restHeaders, setRestHeaders)}>
+                          + Header
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {restHeaders.map((row) => (
+                          <div key={row.id} className="grid grid-cols-[auto_1fr_1fr_auto] gap-2 items-center">
+                            <Checkbox
+                              checked={row.enabled}
+                              onCheckedChange={(checked) =>
+                                upsertRow(restHeaders, setRestHeaders, row.id, "enabled", Boolean(checked))
+                              }
+                              className="h-4 w-4"
+                            />
+                            <Input
+                              placeholder="Header"
+                              value={row.key}
+                              onChange={(e) => upsertRow(restHeaders, setRestHeaders, row.id, "key", e.target.value)}
+                              onBlur={() => ensureRow(restHeaders, setRestHeaders)}
+                              className="h-10"
+                            />
+                            <Input
+                              placeholder="Value"
+                              value={row.value}
+                              onChange={(e) => upsertRow(restHeaders, setRestHeaders, row.id, "value", e.target.value)}
+                              onBlur={() => ensureRow(restHeaders, setRestHeaders)}
+                              className="h-10"
+                            />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              onClick={() => removeRow(restHeaders, setRestHeaders, row.id)}
+                              aria-label="Remove header"
+                            >
+                              <X className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs">Body</Label>
+                        <OptionSelect
+                          value={restBodyMode}
+                          onChange={(next) => {
+                            const typed = next as "none" | "json" | "raw" | "form";
+                            setRestBodyMode(typed);
+                            if (typed === "json") setRestContentType("application/json");
+                            if (typed === "raw") setRestContentType("text/plain");
+                            if (typed === "form") setRestContentType("application/x-www-form-urlencoded");
+                          }}
+                          className="h-9"
+                          widthClass="w-36"
+                          options={[
+                            { value: "none", label: "None" },
+                            { value: "json", label: "JSON" },
+                            { value: "raw", label: "Raw text" },
+                            { value: "form", label: "Form (key=value lines)" }
+                          ]}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs">Content-Type</Label>
+                        <OptionSelect
+                          value={restContentType}
+                          onChange={(v) =>
+                            setRestContentType(
+                              v as "application/json" | "text/plain" | "application/x-www-form-urlencoded"
+                            )
+                          }
+                          options={[
+                            { value: "application/json", label: "application/json" },
+                            { value: "text/plain", label: "text/plain" },
+                            { value: "application/x-www-form-urlencoded", label: "application/x-www-form-urlencoded" }
+                          ]}
+                          className={cn("h-9", restBodyMode === "none" && "pointer-events-none opacity-60")}
+                          widthClass="w-56"
+                        />
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">
+                        {apiMethod === "GET" || apiMethod === "HEAD"
+                          ? "Body on GET/HEAD is unusual; it will be sent if provided."
+                          : "Paste payload below"}
+                      </span>
+                    </div>
+                    <textarea
+                      rows={6}
+                      value={restBody}
+                      onChange={(e) => setRestBody(e.target.value)}
+                      className={cn(
+                        "w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 dark:bg-zinc-950 font-mono",
+                        restBodyMode === "none" ? "opacity-70" : "opacity-100"
+                      )}
+                      placeholder={
+                        restBodyMode === "json"
+                          ? '{\n  "status": "active"\n}'
+                          : restBodyMode === "form"
+                          ? "key=value\nanother=123"
+                          : "Raw text body"
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+
+              {showApiDialog === "graphql" && (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold">Authentication</p>
+                      <span className="text-[11px] text-muted-foreground">Bearer</span>
+                    </div>
+                    <Input
+                      placeholder="Bearer token (optional)"
+                      value={restAuthBearer}
+                      onChange={(e) => setRestAuthBearer(e.target.value)}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold">Headers</p>
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => addRow(gqlHeaders, setGqlHeaders)}>
+                        + Header
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {gqlHeaders.map((row) => (
+                        <div key={row.id} className="grid grid-cols-[auto_1fr_1fr_auto] gap-2 items-center">
+                          <Checkbox
+                            checked={row.enabled}
+                            onCheckedChange={(checked) =>
+                              upsertRow(gqlHeaders, setGqlHeaders, row.id, "enabled", Boolean(checked))
+                            }
+                            className="h-4 w-4"
+                          />
+                          <Input
+                            placeholder="Header"
+                            value={row.key}
+                            onChange={(e) => upsertRow(gqlHeaders, setGqlHeaders, row.id, "key", e.target.value)}
+                            onBlur={() => ensureRow(gqlHeaders, setGqlHeaders)}
+                            className="h-10"
+                          />
+                          <Input
+                            placeholder="Value"
+                            value={row.value}
+                            onChange={(e) => upsertRow(gqlHeaders, setGqlHeaders, row.id, "value", e.target.value)}
+                            onBlur={() => ensureRow(gqlHeaders, setGqlHeaders)}
+                            className="h-10"
+                          />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={() => removeRow(gqlHeaders, setGqlHeaders, row.id)}
+                            aria-label="Remove header"
+                          >
+                            <X className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Query</Label>
+                    <textarea
+                      rows={7}
+                      value={gqlQuery}
+                      onChange={(e) => setGqlQuery(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 dark:bg-zinc-950 font-mono"
+                      placeholder={"query Example {\\n  viewer {\\n    login\\n  }\\n}"}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Variables (JSON, optional)</Label>
+                    <textarea
+                      rows={4}
+                      value={gqlVariables}
+                      onChange={(e) => setGqlVariables(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 dark:bg-zinc-950 font-mono"
+                      placeholder='{"id": "123"}'
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-muted-foreground">
+                <span className="truncate">
+                  Preview:{" "}
+                  <span className="font-mono text-foreground">
+                    {showApiDialog === "rest" ? buildUrlWithParams(apiUrl || "<url>", restParams) : apiUrl || "<url>"}
+                  </span>
+                </span>
+                <span className="font-mono">
+                  {showApiDialog === "rest"
+                    ? restBodyMode === "none"
+                      ? "No body"
+                      : `${apiMethod} • ${restContentType}`
+                    : "POST • application/json"}
+                </span>
+              </div>
+
+              <div className="mt-2 flex justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowApiDialog(null);
+                    resetApiForm();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={showApiDialog === "rest" ? loadFromRest : loadFromGraphQL}
+                  disabled={!apiUrl.trim() || (showApiDialog === "graphql" && !gqlQuery.trim())}
+                >
+                  Send & Load
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showHistoryDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
           <div className="w-full max-w-2xl rounded-lg border border-border/60 bg-white p-4 shadow-xl dark:bg-zinc-950">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold">History</h3>
-              <button onClick={() => setShowHistoryDialog(false)} aria-label="Close">
+              <button
+                onClick={() => {
+                  setShowHistoryDialog(false);
+                  setConfirmDeleteId(null);
+                }}
+                aria-label="Close"
+              >
                 <X className="h-4 w-4 text-muted-foreground" />
               </button>
             </div>
@@ -1052,29 +1746,33 @@ export default function Home() {
                 </Table>
               </div>
             )}
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold">Delete entry?</h3>
-              <button onClick={() => setConfirmDeleteId(null)} aria-label="Close">
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
-            <p className="text-sm text-muted-foreground mb-4">This action cannot be undone.</p>
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => {
-                  const next = history.filter((h) => h.id !== confirmDeleteId);
-                  persistHistory(next);
-                  setConfirmDeleteId(null);
-                }}
-              >
-                Delete
-              </Button>
-            </div>
+            {confirmDeleteId && (
+              <div className="mt-4 rounded-lg border border-border/60 bg-muted/30 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold">Delete entry?</h3>
+                  <button onClick={() => setConfirmDeleteId(null)} aria-label="Close">
+                    <X className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">This action cannot be undone.</p>
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      const next = history.filter((h) => h.id !== confirmDeleteId);
+                      persistHistory(next);
+                      setConfirmDeleteId(null);
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -133,6 +133,38 @@ export default function ComparePage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [tempConfig, setTempConfig] = useState<CompareConfig>(config);
     const [tempIgnoreKeysInput, setTempIgnoreKeysInput] = useState(ignoreKeysInput);
+    const [mounted, setMounted] = useState(false);
+    const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
+    const monacoRef = useRef<any>(null);
+
+    useEffect(() => {
+        const stored = localStorage.getItem("theme");
+        if (stored === "light" || stored === "dark" || stored === "system") {
+            setTheme(stored);
+        }
+        setMounted(true);
+    }, []);
+
+    const isDark = useMemo(() => {
+        if (!mounted) return true;
+        if (theme === "system") {
+            return window.matchMedia("(prefers-color-scheme: dark)").matches;
+        }
+        return theme === "dark";
+    }, [theme, mounted]);
+
+    const editorTheme = isDark ? "app-dark" : "app-light";
+
+    useEffect(() => {
+        const root = document.documentElement;
+        root.classList.toggle("dark", isDark);
+    }, [isDark]);
+
+    useEffect(() => {
+        if (monacoRef.current) {
+            monacoRef.current.editor.setTheme(editorTheme);
+        }
+    }, [editorTheme]);
 
     const activeConfigCount = (config.ignoreArrayOrder ? 1 : 0) +
         (config.ignoreNullValues ? 1 : 0) +
@@ -348,8 +380,29 @@ export default function ComparePage() {
                         <Editor
                             height="100%"
                             language="json"
-                            theme="vs-dark"
+                            theme={editorTheme}
                             value={textA}
+                            beforeMount={(monaco) => {
+                                monacoRef.current = monaco;
+                                monaco.editor.defineTheme("app-dark", {
+                                    base: "vs-dark",
+                                    inherit: true,
+                                    rules: [],
+                                    colors: {
+                                        "editor.background": "#09090b",
+                                        "editorGutter.background": "#09090b",
+                                    }
+                                });
+                                monaco.editor.defineTheme("app-light", {
+                                    base: "vs",
+                                    inherit: true,
+                                    rules: [],
+                                    colors: {
+                                        "editor.background": "#ffffff",
+                                        "editorGutter.background": "#ffffff",
+                                    }
+                                });
+                            }}
                             onChange={(val) => setTextA(val || "")}
                             options={{
                                 minimap: { enabled: false },
@@ -382,7 +435,7 @@ export default function ComparePage() {
                         <Editor
                             height="100%"
                             language="json"
-                            theme="vs-dark"
+                            theme={editorTheme}
                             value={textB}
                             onChange={(val) => setTextB(val || "")}
                             options={{
