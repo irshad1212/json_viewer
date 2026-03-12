@@ -528,139 +528,130 @@ export default function Home() {
           {/* Left Pane - Input */}
           <div className="flex w-1/2 min-w-[25%] flex-col border-r dark:border-zinc-800 bg-white dark:bg-zinc-950 relative">
             <div className="flex h-12 items-center justify-between border-b px-4 dark:border-zinc-800">
-              <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Input</h2>
-              <div className="flex items-center gap-3">
+              <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 shrink-0">Input</h2>
+              <div className="flex items-center gap-2">
                 {notice && !error && (
                   <div className="text-[11px] text-muted-foreground">{notice}</div>
                 )}
-                {error && (
-                  <div className="flex items-center gap-1.5 text-xs text-red-500">
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    <span>{error}</span>
-                  </div>
-                )}
+                <input
+                  ref={jsonFileInputRef}
+                  type="file"
+                  accept="application/json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    handleJsonFile(file);
+                    e.target.value = "";
+                  }}
+                />
+                <input
+                  ref={tableFileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    handleTableFile(file);
+                    e.target.value = "";
+                  }}
+                />
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="h-7 px-3 text-xs font-normal border rounded-md">
+                    Import
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-[160px]">
+                    <DropdownMenuItem
+                      className="text-xs w-full"
+                      onClick={() => jsonFileInputRef.current?.click()}
+                    >
+                      From JSON file
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-xs w-full"
+                      onClick={() => tableFileInputRef.current?.click()}
+                    >
+                      From CSV/Excel (.csv, .xlsx)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => {
+                    try {
+                      const parsed = JSON.parse(jsonText || "{}");
+                      const pretty = JSON.stringify(parsed, null, 2);
+                      setJsonText(pretty);
+                      setParsedJson(parsed);
+                      setError(null);
+                    } catch (err: any) {
+                      setError(err.message || "Invalid JSON");
+                    }
+                  }}
+                >
+                  Beautify
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
+                  disabled={!jsonText.trim()}
+                  onClick={() => {
+                    setSaveName("");
+                    setShowSaveDialog(true);
+                  }}
+                >
+                  <Save className="h-3.5 w-3.5 mr-1" />
+                  Save
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setShowHistoryDialog(true)}
+                >
+                  <History className="h-3.5 w-3.5 mr-1" />
+                  History
+                </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 h-7 px-2 text-xs bg-blue-600 hover:bg-blue-700 text-white border-0 rounded-md">
+                    <Wrench className="h-3.5 w-3.5 mr-1" />
+                    Tools
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-[180px]">
+                    <DropdownMenuItem
+                      className="text-xs cursor-pointer"
+                      onClick={() => toast.info("Generate Data Model - Coming soon")}
+                    >
+                      Generate Data Model
+                    </DropdownMenuItem>
+                    <Link href="/compare" passHref>
+                      <DropdownMenuItem className="text-xs cursor-pointer">
+                        Compare JSON
+                      </DropdownMenuItem>
+                    </Link>
+                    <Link href="/diff" passHref>
+                      <DropdownMenuItem className="text-xs cursor-pointer">
+                        JSON Diff
+                      </DropdownMenuItem>
+                    </Link>
+                    <DropdownMenuItem
+                      className="text-xs cursor-pointer"
+                      onClick={() => toast.info("Convert to JSON - Coming soon")}
+                    >
+                      Convert to JSON
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
-            {!error && (
-              <>
-                <div className="absolute top-2 right-4 z-10 flex items-center gap-2">
-                  <input
-                    ref={jsonFileInputRef}
-                    type="file"
-                    accept="application/json"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      handleJsonFile(file);
-                      e.target.value = "";
-                    }}
-                  />
-                  <input
-                    ref={tableFileInputRef}
-                    type="file"
-                    accept=".csv,.xlsx"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      handleTableFile(file);
-                      e.target.value = "";
-                    }}
-                  />
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="h-7 px-3 text-xs font-normal border rounded-md">
-                      Import
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-[160px]">
-                      <DropdownMenuItem
-                        className="text-xs w-full"
-                        onClick={() => jsonFileInputRef.current?.click()}
-                      >
-                        From JSON file
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-xs w-full"
-                        onClick={() => tableFileInputRef.current?.click()}
-                      >
-                        From CSV/Excel (.csv, .xlsx)
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => {
-                      try {
-                        const parsed = JSON.parse(jsonText || "{}");
-                        const pretty = JSON.stringify(parsed, null, 2);
-                        setJsonText(pretty);
-                        setParsedJson(parsed);
-                        setError(null);
-                      } catch (err: any) {
-                        setError(err.message || "Invalid JSON");
-                      }
-                    }}
-                  >
-                    Beautify
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2 text-xs"
-                    disabled={!jsonText.trim()}
-                    onClick={() => {
-                      setSaveName("");
-                      setShowSaveDialog(true);
-                    }}
-                  >
-                    <Save className="h-3.5 w-3.5 mr-1" />
-                    Save
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => setShowHistoryDialog(true)}
-                  >
-                    <History className="h-3.5 w-3.5 mr-1" />
-                    History
-                  </Button>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 h-7 px-2 text-xs bg-blue-600 hover:bg-blue-700 text-white border-0 rounded-md">
-                      <Wrench className="h-3.5 w-3.5 mr-1" />
-                      Tools
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-[180px]">
-                      <DropdownMenuItem
-                        className="text-xs cursor-pointer"
-                        onClick={() => toast.info("Generate Data Model - Coming soon")}
-                      >
-                        Generate Data Model
-                      </DropdownMenuItem>
-                      <Link href="/compare" passHref>
-                        <DropdownMenuItem className="text-xs cursor-pointer">
-                          Compare JSON
-                        </DropdownMenuItem>
-                      </Link>
-                      <Link href="/diff" passHref>
-                        <DropdownMenuItem className="text-xs cursor-pointer">
-                          JSON Diff
-                        </DropdownMenuItem>
-                      </Link>
-                      <DropdownMenuItem
-                        className="text-xs cursor-pointer"
-                        onClick={() => toast.info("Convert to JSON - Coming soon")}
-                      >
-                        Convert to JSON
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+            <div className="flex-1 min-h-0">
                 <Editor
                   height="100%"
                   language="json"
@@ -687,7 +678,12 @@ export default function Home() {
                     padding: { top: 16 }
                   }}
                 />
-              </>
+            </div>
+            {error && (
+              <div className="flex items-center gap-1.5 border-t border-red-500/30 bg-red-500/10 px-4 py-2 text-xs text-red-500 dark:bg-red-500/5">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{error}</span>
+              </div>
             )}
           </div>
 
