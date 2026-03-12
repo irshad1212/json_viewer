@@ -81,7 +81,41 @@ const loadPapa = () => {
   });
   return papaLoader;
 };
-const initialData: Record<string, unknown> = {};
+const SAMPLE_JSON = {
+  "user": {
+    "id": "USR-9921",
+    "personal_info": {
+      "first_name": "Alex",
+      "last_name": "Rivers",
+      "email": "alex.rivers@example.com",
+      "phone": "+1 (555) 012-3456",
+      "address": {
+        "street": "123 Silicon Valley Way",
+        "city": "Neural City",
+        "state": "CA",
+        "zip": "94000"
+      }
+    },
+    "preferences": {
+      "theme": "dark",
+      "notifications": {
+        "email": true,
+        "push": false,
+        "sms": true
+      },
+      "language": "en-US"
+    },
+    "account_status": "active",
+    "last_login": "2024-03-21T08:15:22Z",
+    "subscription": {
+      "plan": "Premium",
+      "billing_cycle": "annual",
+      "expires_at": "2025-03-21T00:00:00Z"
+    }
+  }
+};
+
+const initialData: Record<string, unknown> = SAMPLE_JSON;
 
 type SavedEntry = {
   id: string;
@@ -108,7 +142,7 @@ type KeyValueRow = {
 };
 
 export default function Home() {
-  const [jsonText, setJsonText] = useState("");
+  const [jsonText, setJsonText] = useState(JSON.stringify(SAMPLE_JSON, null, 2));
   const [parsedJson, setParsedJson] = useState<Record<string, any>>(initialData);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);

@@ -122,9 +122,48 @@ function compareNodes(
     stringifyToLines(newNode, key, indent, lines, "added", isLast);
 }
 
+const DIFF_SAMPLE_A = {
+    "settings": {
+        "display": {
+            "theme": "light",
+            "fontSize": 14,
+            "showLineNumbers": true
+        },
+        "notifications": {
+            "email": true,
+            "sms": false,
+            "frequency": "daily"
+        },
+        "privacy": {
+            "publicProfile": false,
+            "shareData": true
+        }
+    }
+};
+
+const DIFF_SAMPLE_B = {
+    "settings": {
+        "display": {
+            "theme": "dark",
+            "fontSize": 16,
+            "showLineNumbers": true,
+            "sidebar": "collapsed"
+        },
+        "notifications": {
+            "email": true,
+            "sms": true,
+            "frequency": "weekly"
+        },
+        "privacy": {
+            "publicProfile": true,
+            "shareData": false
+        }
+    }
+};
+
 export default function DiffPage() {
-    const [textA, setTextA] = useState("");
-    const [textB, setTextB] = useState("");
+    const [textA, setTextA] = useState(JSON.stringify(DIFF_SAMPLE_A, null, 2));
+    const [textB, setTextB] = useState(JSON.stringify(DIFF_SAMPLE_B, null, 2));
     const [diffLines, setDiffLines] = useState<DiffLine[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [mounted, setMounted] = useState(false);

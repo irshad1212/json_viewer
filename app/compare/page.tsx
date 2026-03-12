@@ -118,9 +118,43 @@ function traverse(
     }
 }
 
+const COMPARE_SAMPLE_A = {
+    "product_id": "PRD-2024-X1",
+    "name": "Neural-Link Headphones",
+    "brand": "AudioTech",
+    "specs": {
+        "connectivity": "Bluetooth 5.3",
+        "battery_life": "40h",
+        "noise_canceling": true
+    },
+    "price": {
+        "amount": 299.99,
+        "currency": "USD"
+    },
+    "tags": ["audio", "wireless", "tech"]
+};
+
+const COMPARE_SAMPLE_B = {
+    "product_id": "PRD-2024-X1-PRO",
+    "name": "Neural-Link Headphones Pro",
+    "brand": "AudioTech",
+    "specs": {
+        "connectivity": "Bluetooth 5.4",
+        "battery_life": "60h",
+        "noise_canceling": true,
+        "spatial_audio": true
+    },
+    "price": {
+        "amount": 349.99,
+        "currency": "USD"
+    },
+    "stock_status": "in_stock",
+    "tags": ["audio", "wireless", "tech", "pro"]
+};
+
 export default function ComparePage() {
-    const [textA, setTextA] = useState("");
-    const [textB, setTextB] = useState("");
+    const [textA, setTextA] = useState(JSON.stringify(COMPARE_SAMPLE_A, null, 2));
+    const [textB, setTextB] = useState(JSON.stringify(COMPARE_SAMPLE_B, null, 2));
     const [compareData, setCompareData] = useState<CompareResult | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [config, setConfig] = useState<CompareConfig>({
