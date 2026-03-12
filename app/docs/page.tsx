@@ -49,7 +49,7 @@ function GuideContent() {
                 {queryLang === "jq" && "jq"}
                 <ChevronDown className="h-4 w-4 opacity-50" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[140px]">
+              <DropdownMenuContent className="w-[140px]">
                 <DropdownMenuItem onClick={() => setQueryLang("jsonpath")}>JSONPath</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setQueryLang("jmespath")}>JMESPath</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setQueryLang("jq")}>jq</DropdownMenuItem>

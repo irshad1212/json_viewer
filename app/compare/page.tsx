@@ -138,7 +138,7 @@ export default function ComparePage() {
     const monacoRef = useRef<any>(null);
 
     useEffect(() => {
-        const stored = localStorage.getItem("theme");
+        const stored = window.localStorage.getItem("theme");
         if (stored === "light" || stored === "dark" || stored === "system") {
             setTheme(stored);
         }

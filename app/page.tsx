@@ -191,7 +191,7 @@ export default function Home() {
 
   const loadHistory = () => {
     try {
-      const stored = localStorage.getItem("jsonViewerHistory");
+      const stored = window.localStorage.getItem("jsonViewerHistory");
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) setHistory(parsed);
@@ -767,11 +767,11 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = localStorage.getItem("theme");
+    const stored = window.localStorage.getItem("theme");
     if (stored === "light" || stored === "dark" || stored === "system") {
       setTheme(stored);
     }
-    const savedJson = localStorage.getItem("jsonViewerText");
+    const savedJson = window.localStorage.getItem("jsonViewerText");
     if (savedJson) {
       setJsonText(savedJson);
       try {
