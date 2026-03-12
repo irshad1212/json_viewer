@@ -4,7 +4,7 @@ import {
   InputData,
   jsonInputForTargetLanguage,
   quicktype
-} from "@/ref/quicktype/packages/quicktype-core/src";
+} from "quicktype-core";
 import {
   getModelSettingsResponse,
   sanitizeRendererOptions

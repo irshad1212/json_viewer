@@ -3,7 +3,7 @@ import "server-only";
 import {
   getTargetLanguage,
   type OptionDefinition
-} from "@/ref/quicktype/packages/quicktype-core/src";
+} from "quicktype-core";
 
 import {
   DEFAULT_INFERENCE_OPTIONS,
