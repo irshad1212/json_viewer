@@ -18,7 +18,8 @@ import {
   Trash2,
   X,
   Loader2,
-  Wrench
+  Wrench,
+  BookText
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import { cn } from "@/lib/utils";
@@ -1410,6 +1411,10 @@ export default function Home() {
                   >
                     Clear
                   </Button>
+                  <Link href="/docs?type=json-query" title="JSON Query Guide" className="flex h-9 w-9 items-center justify-center rounded-md border text-muted-foreground hover:bg-zinc-100 hover:text-foreground dark:hover:bg-zinc-800 transition-colors">
+                    <BookText className="h-4 w-4" />
+                    <span className="sr-only">Query Guide</span>
+                  </Link>
                 </div>
               </div>
 
