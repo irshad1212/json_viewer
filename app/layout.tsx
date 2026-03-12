@@ -1,18 +1,6 @@
 import type { Metadata } from "next";
-import { Inter, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap"
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-mono"
-});
 
 export const metadata: Metadata = {
   title: "JSON Viewer",
@@ -53,10 +41,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body
-        suppressHydrationWarning
-        className={`${inter.className} ${geistMono.variable} antialiased`}
-      >
+      <body suppressHydrationWarning className="antialiased">
         <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>
